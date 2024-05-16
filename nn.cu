@@ -46,9 +46,9 @@ int main(){
     // }
     ////////////////////////////////////////////////////////
     int batch_size = 4;
-    int input_Layer = 512;
-    int output_Layer = 8;
-    int hidden_Layer_size[NUM_HIDDEN_LAYER] = {64, 32, 40};
+    int input_Layer = 400;
+    int output_Layer = 10;
+    int hidden_Layer_size[NUM_HIDDEN_LAYER] = {50, 30, 40};
     //////////////////////// DATA LABEL ALLOCATION /////////////////////////////////
 
     Matrix *input;//우리의 데이터. // forward and backward
@@ -88,66 +88,98 @@ int main(){
     printf("=====================\n");
     
     ///////////////////////////////DATA TRANSFER FROM FILE/////////////////////////////////
-    dummyMatrix(input);
-    //////////////////////////////device memory alloc/////////////////////////////////////
-    Matrix *dInput = moveMatrix(input, 1);
-    Matrix *tmp;
-    Matrix *dW[NUM_HIDDEN_LAYER + 1];//W
-    Matrix *dA[NUM_HIDDEN_LAYER + 1];//activation function layer
+    dummyMatrix(input);//지금은 더미데이터지만 파일에서 가져와야한다. 
+
+
+
+
+
+    //////////////////////////////DEVICE MEMORY ALLOCATION & INITIALIZATION/////////////////////////////////////
+
+    // 여기서는 디바이스 메모리 할당 및 초기화 한다. copy메모리로 메모리를 받아야 하기 때문에 앞에서 한번에 못한다.
     
-    Matrix *dO;//last softmax layer
+    Matrix *dInput = moveMatrix(input, 1);
+    Matrix *dW[NUM_HIDDEN_LAYER + 1];//W
     Matrix *dB[NUM_HIDDEN_LAYER + 1];//bias
+    
+    Matrix *dA[NUM_HIDDEN_LAYER + 1];//activation function layer
+    Matrix *dO;//last softmax layer
 
 
-    ///////////////////////////////W & B memory copy[0~3]//////////////////////////////////
-    dW[0] = copyMatrix(W[0], 1);// 이거 move로 바꿔도 되는 거 아닌가?????
-    dB[0] = copyMatrix(B[0], 1);
-    for(int i=1; i <= NUM_HIDDEN_LAYER; i++){
-        dW[i] = copyMatrix(W[i], 1);
-        dB[i] = copyMatrix(B[i], 1);
+    Matrix *dSigma[NUM_HIDDEN_LAYER + 1];//차원은 dA와 같다.
+    Matrix *dW_deriv[NUM_HIDDEN_LAYER + 1];//차원은 dW와 같다. 
+    Matrix *dB_deriv[NUM_HIDDEN_LAYER + 1];//차원은 dB와 같다.
+
+    Matrix *tmp;//그냥 일단 가지고 있자. 
+
+
+    ///////////////////////////////dW & dB memory copy[0~3]//////////////////////////////////
+
+    for(int i=0; i <= NUM_HIDDEN_LAYER; i++){
+        dW[i] = copyMatrix(W[i], 1);// 이거 move로 바꿔도 되는 거 아닌가????? 일단은 넘어가자. 근데 필요하진 않을듯
+        dB[i] = copyMatrix(B[i], 1);// 이거도 마찬가지
     }
 
+    //dA MATRIX ALLOC
+    for(int i=0; i < NUM_HIDDEN_LAYER; i++){
+        dA[i] = makeMatrix(batch_size, hidden_Layer_size[i], 1);//b[hidden] alloc
+    }
+    dA[NUM_HIDDEN_LAYER] = makeMatrix(batch_size, output_Layer, 1);
 
+    //dO MATRIX ALLOC
+    dO = makeMatrix(batch_size, output_Layer, 1);
+
+
+    //BACKPROP DERIVATIVE MATRIX ALLOCATION
+    dW_deriv[0] = makeMatrix(input_Layer, hidden_Layer_size[0], 1);//W[0] alloc
+    dB_deriv[0] = makeMatrix(1, hidden_Layer_size[0], 1);
+    dSigma[0] = makeMatrix(batch_size, hidden_Layer_size[0], 1);
+    for(int i=1; i < NUM_HIDDEN_LAYER; i++){
+        dW_deriv[i] = makeMatrix(hidden_Layer_size[i-1], hidden_Layer_size[i], 1);//W[hidden] alloc
+        dB_deriv[i] = makeMatrix(1, hidden_Layer_size[i], 1);
+        dSigma[i] = makeMatrix(batch_size, hidden_Layer_size[i], 1);
+    }
+    dW_deriv[NUM_HIDDEN_LAYER] = makeMatrix(hidden_Layer_size[NUM_HIDDEN_LAYER-1],output_Layer, 1);
+    dB_deriv[NUM_HIDDEN_LAYER] = makeMatrix(1, output_Layer, 1);
+    dSigma[NUM_HIDDEN_LAYER] = makeMatrix(batch_size, output_Layer, 1);
+
+    printf("=====dW=====\n");
     for(int i=0; i< sizeof(dW)/sizeof(Matrix*); i++){
         infoMatrix(dW[i]);
+    }
+    printf("=====dB=====\n");
+    for(int i=0; i< sizeof(dB)/sizeof(Matrix*); i++){
+        infoMatrix(dB[i]);
+    }
+    printf("=====dA=====\n");
+    for(int i=0; i< sizeof(dA)/sizeof(Matrix*); i++){
+        infoMatrix(dA[i]);
     }
     ////////////////////////////////=FORWARD PASS=/////////////////////////////////
     
     //나중에 메모리를 해제하는 것은 dA만으로 충분하다.
-    dA[0] = ReLU(matmul_Bias(dInput, dW[0], dB[0]));
-    tmp = copyMatrix(dA[0], 0);
-    printMatrix(tmp);
-    freeMatrix(tmp);
+    dA[0] = ReLU_inline(matmul_Bias_inline(dA[0], dInput, dW[0], dB[0]));
+
     for(int i=1; i < NUM_HIDDEN_LAYER; i++){
-        dA[i] = ReLU(matmul_Bias(dA[i-1], dW[i], dB[i]));//여기 계속 make하네 꼭 iteration마다 해제 해줘야함.
-        
-        tmp = copyMatrix(dA[i], 0);
-        infoMatrix(tmp);
-        printMatrix(tmp);
-        freeMatrix(tmp);
+        dA[i] = ReLU_inline(matmul_Bias_inline(dA[i], dA[i-1], dW[i], dB[i]));//여기 계속 make하네 꼭 iteration마다 해제 해줘야함.
     }
-    dA[NUM_HIDDEN_LAYER] = matmul_Bias(dA[NUM_HIDDEN_LAYER-1], dW[NUM_HIDDEN_LAYER], dB[NUM_HIDDEN_LAYER]);//마지막 레이어는 activation 을 통과하면 안됨.
+
+    dA[NUM_HIDDEN_LAYER] = matmul_Bias_inline(dA[NUM_HIDDEN_LAYER], dA[NUM_HIDDEN_LAYER-1], dW[NUM_HIDDEN_LAYER], dB[NUM_HIDDEN_LAYER]);//마지막 레이어는 activation 을 통과하면 안됨.
     
-    // softMax_Rowwise(dA[NUM_HIDDEN_LAYER], dO);//이거 디바이스 땜에 오류남. 근데 어차피 디바이스에 라벨도 다 올리는데 그냥 디바이스에서 하는게 맞지 않을까.
-    
-
-    //dim check
-    printf("=======dA dimension=========\n");
-    for(int i=0; i < sizeof(dA)/sizeof(Matrix*);i++){
-        infoMatrix(dA[i]);
-    }
-    dO = copyMatrix(dA[NUM_HIDDEN_LAYER], 0);
-    printf("=======dO dimemtion=========\n");
-    printMatrix(dO);
-    softMax_Rowwise_inline(dO,dO);
-    infoMatrix(dO);
-    printMatrix(dO);
-
-    ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
-    
+    softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
+    printMatrix(copyMatrix(dA[NUM_HIDDEN_LAYER], 0));
+    printMatrix(copyMatrix(dO, 0));
+    // //dim check
+    // printf("=======dA dimension=========\n");
+    // for(int i=0; i < sizeof(dA)/sizeof(Matrix*);i++){
+    //     infoMatrix(dA[i]);
+    // }
+    // ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
+    // printf("dO:\n");
+    // printMatrix(copyMatrix(dO, 0));
 
 
-    ////////////////////////////////=BACKWARD PASS=/////////////////////////////////
+    // ////////////////////////////////=BACKWARD PASS=/////////////////////////////////
 
     return 0;
 }

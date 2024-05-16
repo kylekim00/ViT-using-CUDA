@@ -248,7 +248,7 @@ __global__ void ReLU_device(float *dA, int size){
         dA[i] = 0;
     }
 }
-Matrix *ReLU(Matrix *mat){//change values directly. doesn't clone.
+Matrix *ReLU_inline(Matrix *mat){//change values directly. doesn't clone.
     int thdsPerBlks = tile_SIZE*tile_SIZE;
     int numofBlks = (mat->row*mat->col+thdsPerBlks-1) / thdsPerBlks;
     cudaSetDevice(mat->device_type-1);
@@ -258,26 +258,40 @@ Matrix *ReLU(Matrix *mat){//change values directly. doesn't clone.
 }
 
 
-// __global__ void softMax(float *dA, int size){
-//     expf(*dA);
-// }
-
-
-// Matrix *softMax_Rowwise_inline(Matrix *dMat){
-//     softMax<<<dMat->row, dMat->col>>>(dMat->M);
-
-// }
-
-Matrix *softMax_Rowwise_inline(Matrix *res_Mat, Matrix *mat){
-    for(int i=0; i < mat->row; i++){
-        double tmp = 0.0;
-        for(int j=0; j < mat -> col; j++){
-            tmp += exp(mat->M[i * mat->col + j]);
+__global__ void softMax(float*dRes, float *dMat, int row, int col){
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if(i < row){
+        double sum = 0.0;
+        for(int j=0; j < col; j++){
+            sum += expf(dMat[i * col + j]);
         }
-        for(int j=0; j < mat -> col; j++){
-            res_Mat->M[i * mat->col + j] = exp(mat->M[i * mat->col + j]) / tmp;
+        for(int j=0; j < col; j++){
+            dRes[i * col + j] = expf(dMat[i * col + j]) / sum;
         }
     }
-    return res_Mat;
 }
+
+
+Matrix *softMax_Rowwise_inline(Matrix*dRes, Matrix *dMat){
+    if(dMat->row == dRes->row && dMat->col == dRes->col){
+        softMax<<<((dMat->row + tile_SIZE - 1) / tile_SIZE), tile_SIZE>>>(dRes->M, dMat->M, dMat->row, dMat->col);
+        return dMat;
+    }else{
+        printf("\"softMax_Rowwise_inline\" : src's and res's row and column is not same\n");
+        return NULL;
+    }
+}
+
+// Matrix *softMax_Rowwise_inline(Matrix *res_Mat, Matrix *mat){
+//     for(int i=0; i < mat->row; i++){
+//         double tmp = 0.0;
+//         for(int j=0; j < mat -> col; j++){
+//             tmp += exp(mat->M[i * mat->col + j]);
+//         }
+//         for(int j=0; j < mat -> col; j++){
+//             res_Mat->M[i * mat->col + j] = exp(mat->M[i * mat->col + j]) / tmp;
+//         }
+//     }
+//     return res_Mat;
+// }
 

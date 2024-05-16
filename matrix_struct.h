@@ -27,7 +27,8 @@ Matrix *matmul_inline(Matrix*dC, Matrix*dA, Matrix *dB);
 Matrix *matmul_Bias(Matrix*dA, Matrix *dB, Matrix *dBias);
 Matrix *matmul_Bias_inline(Matrix*res, Matrix*dA, Matrix *dB, Matrix *dBias);
 Matrix* moveMatrix(Matrix *mat, int device_type);
-Matrix* ReLU(Matrix *mat);
+Matrix* ReLU_inline(Matrix *mat);
 void infoMatrix(Matrix *mat);
-Matrix *softMax_Rowwise_inline(Matrix* resMat,Matrix *mat);
+Matrix *softMax_Rowwise_inline(Matrix *dRes, Matrix *dMat);
+// Matrix *softMax_Rowwise_inline(Matrix* resMat,Matrix *mat);
 #endif // MATRIX_H
