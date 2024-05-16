@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <cuda_runtime.h>
 
-#define tile_SIZE 4
+#define tile_SIZE 8
 
 typedef struct Matrix {
     char device_type;  // 0 for CPU, non-zero for GPU device ID

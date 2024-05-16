@@ -167,11 +167,6 @@ int main(){
     
     //softMax 함수
     dO = softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
-    //dim check
-    // printf("=======dA dimension=========\n");
-    // for(int i=0; i < sizeof(dA)/sizeof(Matrix*);i++){
-    //     infoMatrix(dA[i]);
-    // }
 
     ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
 
