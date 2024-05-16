@@ -24,10 +24,14 @@ int main(){
     //     A = moveMatrix(A, 0);
     // }
 
-    Matrix *A = makeMatrix(16, 8, 0);
+    Matrix *A = makeMatrix(15, 7, 0);
     dummyMatrix(A);
-    printMatrix(A);
-    printMatrix(softMax_Rowwise_inline(A));
+    Matrix *B = makeMatrix(7, 7, 0);
+    dummyMatrix(B);
+    Matrix *dA = copyMatrix(A, 1);
+    Matrix *dB = copyMatrix(B, 1);
+
+    printMatrix(moveMatrix(matmul(dA, dB), 0));
     // Matrix *B = makeMatrix(2, 3, 0);
     // dummyMatrix(B);
     
