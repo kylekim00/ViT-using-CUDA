@@ -30,5 +30,6 @@ Matrix* moveMatrix(Matrix *mat, int device_type);
 Matrix* ReLU_inline(Matrix *mat);
 void infoMatrix(Matrix *mat);
 Matrix *softMax_Rowwise_inline(Matrix *dRes, Matrix *dMat);
-// Matrix *softMax_Rowwise_inline(Matrix* resMat,Matrix *mat);
+Matrix *matAdd(Matrix *dMat, Matrix *dA, Matrix *dB);
+Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB);
 #endif // MATRIX_H

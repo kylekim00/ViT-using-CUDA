@@ -32,7 +32,7 @@ double generateStandardNormal() {
 
 void dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
-        mat->M[i] = generateStandardNormal();
+        mat->M[i] = generateStandardNormal()/5;
     }
 }
 
@@ -53,12 +53,10 @@ int main(){
 
     Matrix *input;//우리의 데이터. // forward and backward
     Matrix *label;
-    
 
     input = makeMatrix(batch_size, input_Layer, 0);//input 공간할당
     dummyMatrix(input);
     label = makeMatrix(batch_size, 1, 0);
-    
 
     /////////////////////// WEIGHT BIAS ALLOCATION /////////////////////////////
 
@@ -164,21 +162,29 @@ int main(){
         dA[i] = ReLU_inline(matmul_Bias_inline(dA[i], dA[i-1], dW[i], dB[i]));//여기 계속 make하네 꼭 iteration마다 해제 해줘야함.
     }
 
+
     dA[NUM_HIDDEN_LAYER] = matmul_Bias_inline(dA[NUM_HIDDEN_LAYER], dA[NUM_HIDDEN_LAYER-1], dW[NUM_HIDDEN_LAYER], dB[NUM_HIDDEN_LAYER]);//마지막 레이어는 activation 을 통과하면 안됨.
     
-    softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
-    printMatrix(copyMatrix(dA[NUM_HIDDEN_LAYER], 0));
-    printMatrix(copyMatrix(dO, 0));
-    // //dim check
+    //softMax 함수
+    dO = softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
+    //dim check
     // printf("=======dA dimension=========\n");
     // for(int i=0; i < sizeof(dA)/sizeof(Matrix*);i++){
     //     infoMatrix(dA[i]);
     // }
-    // ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
-    // printf("dO:\n");
-    // printMatrix(copyMatrix(dO, 0));
 
+    ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
 
+    printf("dO:\n");
+    Matrix *O = copyMatrix(dO, 0);
+    printMatrix(O);
+
+    float loss = 0;
+    for(int i=0; i < O->row; i++){//batch
+        printf("%d\n",(int)label->M[i]);
+        loss -= log(O->M[i * O->col + (int)label->M[i]]);
+    }
+    printf("loss : %f\n", loss);
     // ////////////////////////////////=BACKWARD PASS=/////////////////////////////////
 
     return 0;

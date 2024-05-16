@@ -275,12 +275,58 @@ __global__ void softMax(float*dRes, float *dMat, int row, int col){
 Matrix *softMax_Rowwise_inline(Matrix*dRes, Matrix *dMat){
     if(dMat->row == dRes->row && dMat->col == dRes->col){
         softMax<<<((dMat->row + tile_SIZE - 1) / tile_SIZE), tile_SIZE>>>(dRes->M, dMat->M, dMat->row, dMat->col);
-        return dMat;
+        return dRes;
     }else{
         printf("\"softMax_Rowwise_inline\" : src's and res's row and column is not same\n");
         return NULL;
     }
 }
+
+
+int isSameShape(Matrix *dMat1, Matrix *dMat2, Matrix *dMat3){
+    return dMat1->row == dMat2->row && dMat1->col == dMat2->col && dMat2->row == dMat3->row && dMat2->col == dMat3-> col && dMat1-> device_type == dMat2 ->device_type &&dMat2->device_type == dMat3->device_type;
+}
+
+__global__ void matadd_(float *dMat, float *dA, float *dB, int size){
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if(i < size){
+        dMat[i] = dA[i] + dB[i];
+    }
+}
+
+Matrix *matAdd(Matrix *dMat, Matrix *dA, Matrix *dB){
+    if(isSameShape(dMat, dA, dB)){
+        int size = dA->row * dA->col;
+        matadd_<<<(size+tile_SIZE*tile_SIZE -1)/tile_SIZE,tile_SIZE * tile_SIZE>>>(dMat->M, dA->M, dB->M, dA->row * dA->col);
+        return dMat;
+    }else{
+        printf("\"matAdd\" : one of dMat, dA, dB's type does not match\n");
+        return NULL;
+    }
+}
+
+
+__global__ void matsub_(float *dMat, float *dA, float *dB, int size){
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if(i < size){
+        dMat[i] = dA[i] - dB[i];
+    }
+}
+
+Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
+    if(isSameShape(dMat, dA, dB)){
+        int size = dA->row * dA->col;
+        matsub_<<<(size+tile_SIZE*tile_SIZE -1)/tile_SIZE,tile_SIZE * tile_SIZE>>>(dMat->M, dA->M, dB->M, dA->row * dA->col);
+        return dMat;
+    }else{
+        printf("\"matAdd\" : one of dMat, dA, dB's type does not match\n");
+        return NULL;
+    }
+}
+
+// Matrix *eyeMat(Matrix*dEye,Matrix *dMat){
+//     for(int i=0; i < dMat*)
+// }
 
 // Matrix *softMax_Rowwise_inline(Matrix *res_Mat, Matrix *mat){
 //     for(int i=0; i < mat->row; i++){

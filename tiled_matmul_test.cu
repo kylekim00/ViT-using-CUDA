@@ -26,15 +26,22 @@ int main(){
 
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
-    // Matrix *B = makeMatrix(7, 9, 0);
-    // dummyMatrix(B);
+    Matrix *B = makeMatrix(5, 7, 0);
+    dummyMatrix(B);
     printMatrix(A);
-    printf("==\n");
     Matrix *dA = copyMatrix(A, 1);
-    printMatrix(moveMatrix(softMax_Rowwise_inline(dA, dA), 0));
+    printMatrix(moveMatrix(matSub(dA, dA, copyMatrix(B, 1)), 0));
+
+    
+
+    // dummyMatrix(B);
+    // printMatrix(A);
+    // printf("==\n");
+    // Matrix *dA = copyMatrix(A, 1);
+    // printMatrix(moveMatrix(softMax_Rowwise_inline(dA, dA), 0));
     // Matrix *B = makeMatrix(2, 3, 0);
     // dummyMatrix(B);
-    
+
     // Matrix *dA = moveMatrix(A, 1);
     // printf("%f", A->M[3]);
     // Matrix *dB = copyMatrix(B, 1);
