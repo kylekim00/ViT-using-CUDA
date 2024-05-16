@@ -32,7 +32,7 @@ double generateStandardNormal() {
 
 void dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
-        mat->M[i] = i-mat->row * mat-> col;
+        mat->M[i] = generateStandardNormal();
     }
 }
 
@@ -70,7 +70,6 @@ int main(){
     for(int i=1; i < NUM_HIDDEN_LAYER; i++){
         W[i] = makeMatrix(hidden_Layer_size[i-1], hidden_Layer_size[i], 0);//W[hidden] alloc
         B[i] = makeMatrix(1, hidden_Layer_size[i], 0);
-        dummyMatrix(W[i]);dummyMatrix(B[i]);//가중치 추가
     }
     W[NUM_HIDDEN_LAYER] = makeMatrix(hidden_Layer_size[NUM_HIDDEN_LAYER-1],output_Layer, 0);//W[n-1] alloc
     B[NUM_HIDDEN_LAYER] = makeMatrix(1, output_Layer, 0);
@@ -80,6 +79,7 @@ int main(){
     //Weights dimension check
     printf("=====W dimension=====\n");
     for(int i=0; i < NUM_HIDDEN_LAYER+1;i++){
+        dummyMatrix(W[i]);dummyMatrix(B[i]);//가중치 추가
         printf("W[%d] : ",i);
         infoMatrix(W[i]);
         printf("B[%d] : ",i);
@@ -91,7 +91,7 @@ int main(){
     dummyMatrix(input);
     //////////////////////////////device memory alloc/////////////////////////////////////
     Matrix *dInput = moveMatrix(input, 1);
-
+    Matrix *tmp;
     Matrix *dW[NUM_HIDDEN_LAYER + 1];//W
     Matrix *dA[NUM_HIDDEN_LAYER + 1];//activation function layer
     
@@ -99,7 +99,7 @@ int main(){
     Matrix *dB[NUM_HIDDEN_LAYER + 1];//bias
 
 
-    //W & B memory copy[0~3]
+    ///////////////////////////////W & B memory copy[0~3]//////////////////////////////////
     dW[0] = copyMatrix(W[0], 1);// 이거 move로 바꿔도 되는 거 아닌가?????
     dB[0] = copyMatrix(B[0], 1);
     for(int i=1; i <= NUM_HIDDEN_LAYER; i++){
@@ -115,8 +115,16 @@ int main(){
     
     //나중에 메모리를 해제하는 것은 dA만으로 충분하다.
     dA[0] = ReLU(matmul_Bias(dInput, dW[0], dB[0]));
+    tmp = copyMatrix(dA[0], 0);
+    printMatrix(tmp);
+    freeMatrix(tmp);
     for(int i=1; i < NUM_HIDDEN_LAYER; i++){
         dA[i] = ReLU(matmul_Bias(dA[i-1], dW[i], dB[i]));//여기 계속 make하네 꼭 iteration마다 해제 해줘야함.
+        
+        tmp = copyMatrix(dA[i], 0);
+        infoMatrix(tmp);
+        printMatrix(tmp);
+        freeMatrix(tmp);
     }
     dA[NUM_HIDDEN_LAYER] = matmul_Bias(dA[NUM_HIDDEN_LAYER-1], dW[NUM_HIDDEN_LAYER], dB[NUM_HIDDEN_LAYER]);//마지막 레이어는 activation 을 통과하면 안됨.
     
