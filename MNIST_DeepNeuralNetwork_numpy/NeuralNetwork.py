@@ -68,6 +68,7 @@ class Network():
         for i in reversed(range(2, self.num_layers + 1)):
             # self.db[i] = np.sum(self.delta[i], axis=0)
             self.db[i] = np.matmul(np.ones((1, X.shape[0])), self.delta[i]) / X.shape[0]
+            print(np.ones(X.shape[0]).shape, self.delta[i].shape)
             self.dW[i] = np.matmul(np.transpose(self.A[i-1]), self.delta[i]) / X.shape[0] #외적계산이긴한데 배치를 묶어주어서 전미분으로 계산을 하면 내적계산으로 변한다.
             self.delta[i-1] = np.matmul(self.delta[i], np.transpose(self.W[i])) *  dReLU(self.Z[i-1])
 
