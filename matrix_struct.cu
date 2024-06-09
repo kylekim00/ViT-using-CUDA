@@ -1,3 +1,4 @@
+//codefor Matrix functions
 #include <stdio.h>
 #include <math.h>
 #include <cuda_runtime.h>
@@ -323,6 +324,13 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
         return NULL;
     }
 }
+
+
+// Matrix * conv2D(Matrix *dMat, Matrix *dA, Matrix *dB){
+    
+// }
+
+
 
 // Matrix *eyeMat(Matrix*dEye,Matrix *dMat){
 //     for(int i=0; i < dMat*)
