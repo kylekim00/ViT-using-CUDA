@@ -262,12 +262,16 @@ Matrix *ReLU_inline(Matrix *mat){//change values directly. doesn't clone.
 __global__ void softMax(float*dRes, float *dMat, int row, int col){
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     if(i < row){
-        double sum = 0.0;
+        float sum = 0.0;
+        float max = -__FLT_MAX__;
         for(int j=0; j < col; j++){
-            sum += expf(dMat[i * col + j]);
+            if(max < dMat[i*col + j]) max = dMat[i*col+j];
         }
         for(int j=0; j < col; j++){
-            dRes[i * col + j] = expf(dMat[i * col + j]) / sum;
+            sum += expf(dMat[i * col + j]-max);
+        }
+        for(int j=0; j < col; j++){
+            dRes[i * col + j] = expf(dMat[i * col + j]-max) / sum;
         }
     }
 }

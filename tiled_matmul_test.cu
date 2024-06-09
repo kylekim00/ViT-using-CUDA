@@ -5,7 +5,7 @@
 #include <stdio.h>
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
-        float dm = i*i /100.0;
+        float dm = i*i/10;
         mat->M[i] = dm;
     }
     return mat;
@@ -26,13 +26,11 @@ int main(){
 
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
-    Matrix *B = makeMatrix(5, 7, 0);
-    dummyMatrix(B);
     printMatrix(A);
-    Matrix *dA = copyMatrix(A, 1);
-    printMatrix(moveMatrix(matSub(dA, dA, copyMatrix(B, 1)), 0));
-
-    
+    Matrix *dA = moveMatrix(A, 1);
+    dA = softMax_Rowwise_inline(dA, dA);
+    A = moveMatrix(dA, 0);
+    printMatrix(A);   
 
     // dummyMatrix(B);
     // printMatrix(A);
