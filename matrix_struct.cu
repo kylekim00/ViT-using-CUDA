@@ -324,8 +324,16 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
     }
 }
 
-// Matrix *eyeMat(Matrix*dEye,Matrix *dMat){
-//     for(int i=0; i < dMat*)
+__global__ void eyeMatrix(Matrix*dMat, int inx){
+
+}
+// Matrix *eyeMat(Matrix*dMat, int inx){
+//     if(dMat->row != 1){
+//         printf("row of eyemat should be 1\n");
+//         return NULL;
+//     }
+    
+//     return dMat;
 // }
 
 // Matrix *softMax_Rowwise_inline(Matrix *res_Mat, Matrix *mat){

@@ -6,6 +6,9 @@
 
 #include "matrix_struct.h"
 
+// typedef struct 
+
+
 double generateStandardNormal() {
     double u1, u2, w, mult;
     static double x1, x2;
@@ -104,9 +107,9 @@ int main(){
     Matrix *dO;//last softmax layer
 
 
-    Matrix *dSigma[NUM_HIDDEN_LAYER + 1];//차원은 dA와 같다.
-    Matrix *dW_deriv[NUM_HIDDEN_LAYER + 1];//차원은 dW와 같다. 
-    Matrix *dB_deriv[NUM_HIDDEN_LAYER + 1];//차원은 dB와 같다.
+    Matrix *dSigma[NUM_HIDDEN_LAYER + 1];//역전파할 때의 dA미분값, 차원은 dA와 같다.
+    Matrix *dW_deriv[NUM_HIDDEN_LAYER + 1];//역전파 할떄의 dW미분값, 차원은 dW와 같다. 
+    Matrix *dB_deriv[NUM_HIDDEN_LAYER + 1];//역전파 할 때의 dB미분값, 차원은 dB와 같다.
 
     Matrix *tmp;//그냥 일단 가지고 있자. 
 
@@ -180,7 +183,12 @@ int main(){
         loss -= log(O->M[i * O->col + (int)label->M[i]]);
     }
     printf("loss : %f\n", loss);
-    // ////////////////////////////////=BACKWARD PASS=/////////////////////////////////
+    //////////////////////////////////=BACKWARD PASS=/////////////////////////////////
+    //O_i-Y_i
+    Matrix *dY = copyMatrix(label, 1);
+    matSub(dSigma[NUM_HIDDEN_LAYER-1], dO, dY);
+    
+
 
     return 0;
 }
