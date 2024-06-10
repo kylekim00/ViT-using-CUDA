@@ -5,7 +5,7 @@
 #include <stdio.h>
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
-        float dm = i*i /100.0;
+        float dm = i;
         mat->M[i] = dm;
     }
     return mat;
@@ -26,12 +26,14 @@ int main(){
 
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
-    Matrix *B = makeMatrix(5, 7, 0);
-    dummyMatrix(B);
     printMatrix(A);
-    A = moveMatrix(A, 1);
-    B = moveMatrix(B, 2);
-    printMatrix(moveMatrix(matSub(dA, dA, copyMatrix(B, 1)), 0));
+    Matrix *B = makeMatrix(5, 7, 0);
+    Matrix *C = makeMatrix(5, 7, 0);
+    copyMatrix(B, A);
+    copyMatrix(C, B);
+    infoMatrix(C);
+    copyMatrix(A, C);
+    printMatrix(A);
 
 
 }
