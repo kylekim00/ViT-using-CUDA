@@ -29,25 +29,13 @@ int main(){
     Matrix *B = makeMatrix(5, 7, 0);
     dummyMatrix(B);
     printMatrix(A);
-    Matrix *dA = copyMatrix(A, 1);
+    A = moveMatrix(A, 1);
+    B = moveMatrix(B, 2);
     printMatrix(moveMatrix(matSub(dA, dA, copyMatrix(B, 1)), 0));
 
-    
 
-    // dummyMatrix(B);
-    // printMatrix(A);
-    // printf("==\n");
-    // Matrix *dA = copyMatrix(A, 1);
-    // printMatrix(moveMatrix(softMax_Rowwise_inline(dA, dA), 0));
-    // Matrix *B = makeMatrix(2, 3, 0);
-    // dummyMatrix(B);
-
-    // Matrix *dA = moveMatrix(A, 1);
-    // printf("%f", A->M[3]);
-    // Matrix *dB = copyMatrix(B, 1);
-    // Matrix *dC = matmul(dA,dB);
-    // Matrix *C = moveMatrix(dC,0);
 }
 
 //쿠다를 해제한다고 해서 할당된 메모리가 그냥 의미없이 사라지는 것이 아니다. 마치 휴지통에 지운다고 해서
 //그 메모리를 못쓰는게 아닌것 처럼. 그냥 덮어서 쓸 뿐이다. 그래서 free를 시켜도 할당된 메모리 사용랑이 변하지 않는 것이다. 
+//걍 더 쓸 때 더 늘어날 뿐이다.

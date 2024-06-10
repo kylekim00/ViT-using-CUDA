@@ -100,13 +100,30 @@ Matrix* copyMatrix(Matrix *mat, int device_type){
         }
     }
 }
-
 Matrix* moveMatrix(Matrix *mat, int device_type){
     Matrix *tmp_mat = copyMatrix(mat, device_type);
     if(!tmp_mat)
         return NULL;
     freeMatrix(mat);
     return tmp_mat;
+}
+
+Matrix* copyMatrix_inline(Matrix *dst, Matrix* src, int device_type){
+    if(dst->col == src->col && dst->row == src->row){
+        printf("two Matrices has different row or column.\n");
+        return NULL;
+    }
+    if(!devicetype){
+        cudaSetDevice(src-> device_type-1);
+        cudaMemcpy(dst->M, src->M, sizeof(float) * row * col, cudaMemcpyDeviceToHost);
+    }else{
+        if(device_type > 0 && device_type <= tmp){
+            return copyMatToDevice(mat, device_type);
+        }else{
+            printf("invalid device type\n");
+            return NULL;
+        }
+    }
 }
 
 
