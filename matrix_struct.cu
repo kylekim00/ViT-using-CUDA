@@ -57,57 +57,79 @@ void infoMatrix(Matrix *mat){
     printf("device : %d dim:(%d, %d)\n", mat->device_type,mat->row, mat->col);
 }
 
-Matrix* copyMatToDevice(Matrix *mat, int device_type){
-    if(!mat->device_type){
-        cudaSetDevice(device_type-1);
-        Matrix *dMat = makeMatrix(mat->row, mat->col, device_type);
-        cudaMemcpy(dMat->M, mat->M, mat->row * mat->col * sizeof(float), cudaMemcpyHostToDevice);
-        return dMat;
-    }
-    return NULL;
-}
 
-Matrix* copyMatToHost(Matrix *dMat){
-    if(dMat->device_type){
-        Matrix * mat = makeMatrix(dMat->row, dMat->col, 0);
-        cudaSetDevice(dMat->device_type-1);
-        cudaMemcpy(mat->M, dMat->M, mat->row * mat->col * sizeof(float), cudaMemcpyDeviceToHost);
-        return mat;
-    }
-    return NULL;
-}
 
-Matrix* copyMatrix(Matrix *mat, int device_type){
-    if(!device_type){//device_type == cpu
-            Matrix * mat_copy = makeMatrix(mat->row, mat->col, 0);
-            cudaSetDevice(mat->device_type-1);
-            cudaMemcpy(mat_copy->M, mat->M, mat_copy->row * mat_copy->col * sizeof(float), cudaMemcpyDeviceToHost);
-            return mat_copy;
-    }else {
-        if(!mat->device_type){
-            int tmp;
-            cudaGetDeviceCount(&tmp);
-            if(device_type > 0 && device_type <= tmp){
-                return copyMatToDevice(mat, device_type);
-            }else{
-                printf("invalid device type\n");
-                return NULL;
-            }
-        }else{
-            //여기에 devicetodevice를 조진다.
-            printf("invalid device type\n");
-            return NULL;
-        }
-    }
-}
-
-Matrix* moveMatrix(Matrix *mat, int device_type){
-    Matrix *tmp_mat = copyMatrix(mat, device_type);
-    if(!tmp_mat)
+Matrix* copyMatrix(Matrix *dst, Matrix *src){
+    if(dst->row != src->row || dst->col != src->col){
+        printf("copyMatrix : shape of dst and src doesn't match.\n");
         return NULL;
-    freeMatrix(mat);
-    return tmp_mat;
+    }
+    if(!dst->device_type && !src->device_type){ //CPU to CPU
+        for(int i=0; i < dst->row * dst->col; i++)
+            dst->M[i] = src->M[i];
+    }
+    else if(dst->device_type && src->device_type){
+        cudaMemcpy(dst->M, src->M, dst->row * dst->col * sizeof(float), cudaMemcpyDeviceToDevice);
+    }
+    else if(dst->device_type){
+        cudaMemcpy(dst->M, src->M, dst->row * dst->col * sizeof(float), cudaMemcpyHostToDevice);
+    }else{
+        cudaMemcpy(dst->M, src->M, dst->row * dst->col * sizeof(float), cudaMemcpyDeviceToHost);
+    }
+    return dst;
 }
+
+// Matrix* copyMatToDevice(Matrix *mat, int device_type){
+//     if(!mat->device_type){
+//         cudaSetDevice(device_type-1);
+//         Matrix *dMat = makeMatrix(mat->row, mat->col, device_type);
+//         cudaMemcpy(dMat->M, mat->M, mat->row * mat->col * sizeof(float), cudaMemcpyHostToDevice);
+//         return dMat;
+//     }
+//     return NULL;
+// }
+
+// Matrix* copyMatToHost(Matrix *dMat){
+//     if(dMat->device_type){
+//         Matrix * mat = makeMatrix(dMat->row, dMat->col, 0);
+//         cudaSetDevice(dMat->device_type-1);
+//         cudaMemcpy(mat->M, dMat->M, mat->row * mat->col * sizeof(float), cudaMemcpyDeviceToHost);
+//         return mat;
+//     }
+//     return NULL;
+// }
+
+// Matrix* copyMatrix(Matrix *mat, int device_type){
+//     if(!device_type){//device_type == cpu
+//             Matrix * mat_copy = makeMatrix(mat->row, mat->col, 0);
+//             cudaSetDevice(mat->device_type-1);
+//             cudaMemcpy(mat_copy->M, mat->M, mat_copy->row * mat_copy->col * sizeof(float), cudaMemcpyDeviceToHost);
+//             return mat_copy;
+//     }else {
+//         if(!mat->device_type){
+//             int tmp;
+//             cudaGetDeviceCount(&tmp);
+//             if(device_type > 0 && device_type <= tmp){
+//                 return copyMatToDevice(mat, device_type);
+//             }else{
+//                 printf("invalid device type\n");
+//                 return NULL;
+//             }
+//         }else{
+//             //여기에 devicetodevice를 조진다.
+//             printf("invalid device type\n");
+//             return NULL;
+//         }
+//     }
+// }
+
+// Matrix* moveMatrix(Matrix *mat, int device_type){
+//     Matrix *tmp_mat = copyMatrix(mat, device_type);
+//     if(!tmp_mat)
+//         return NULL;
+//     freeMatrix(mat);
+//     return tmp_mat;
+// }
 
 
 __global__ void tiledMM(float *A, float *B, float *C, float *bias, int M, int N, int K) {

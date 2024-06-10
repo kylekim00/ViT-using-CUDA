@@ -20,7 +20,8 @@ void freeMatrix(Matrix *mat);                           //free memory
 void printMatrix(Matrix *mat);                          //print CPU matrix
 Matrix* copyMatToDevice(Matrix *mat, int device_type);  //deep copy matrix to other device
 Matrix* copyMatToHost(Matrix *dMat);
-Matrix* copyMatrix(Matrix *mat, int device_type);  //deep copy matrix to other device
+// Matrix* copyMatrix(Matrix *mat, int device_type);  //deep copy matrix to other device
+Matrix* copyMatrix(Matrix *dst, Matrix *src);
 // Matrix* matmul(Matrix *dA, Matrix *dB);
 Matrix *matmul(Matrix*dA, Matrix *dB);
 Matrix *matmul_inline(Matrix*dC, Matrix*dA, Matrix *dB);
