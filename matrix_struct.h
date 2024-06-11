@@ -33,4 +33,5 @@ void infoMatrix(Matrix *mat);
 Matrix *softMax_Rowwise_inline(Matrix *dRes, Matrix *dMat);
 Matrix *matAdd(Matrix *dMat, Matrix *dA, Matrix *dB);
 Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB);
+Matrix *transposeMatrix(Matrix *mat);
 #endif // MATRIX_H

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include<stdlib.h>
 #include <math.h>
 #include <cuda_runtime.h>
 #include "matrix_struct.h"
@@ -299,16 +300,61 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
         matsub_<<<(size+tile_SIZE*tile_SIZE -1)/tile_SIZE,tile_SIZE * tile_SIZE>>>(dMat->M, dA->M, dB->M, dA->row * dA->col);
         return dMat;
     }else{
-        printf("\"matAdd\" : one of dMat, dA, dB's type does not match\n");
+        printf("\"matAdd\" : one of dMat, dA, dB's type does not match\n"); 
         return NULL;
     }
 }
 
-__global__ void transposeMatrix(float *M){
-    
+// __global__ void transposeMatrix_(float* M_out, float *M, int row_size, int col_size){
+//     __shared__ float s_tile[tile_SIZE][tile_SIZE+1]; // bank conflict를 피하기 위해 +1을 추가
+
+//     int row = blockIdx.y * tile_SIZE + threadIdx.y;
+//     int col = blockIdx.x * tile_SIZE + threadIdx.x;
+
+//     // 원본 행렬의 값을 타일에 로드
+//     if(row < row_size && col < col_size){
+//         s_tile[threadIdx.y][threadIdx.x] = M[row * col_size + col];
+//     }
+
+//         __syncthreads();
+
+//     // 전치된 값을 출력 행렬에 저장
+//     if(row < row_size && col < col_size){
+//         M_out[row * col_size + col] = s_tile[threadIdx.y][threadIdx.x];
+//     }
+//     // row = blockIdx.x * tile_SIZE + threadIdx.y;
+//     // col = blockIdx.y * tile_SIZE + threadIdx.x;
+
+//     // if(row < col_size && col < row_size){
+//     //     M_out[row * row_size + col] = s_tile[threadIdx.x][threadIdx.y];
+//     // }
+// }
+__global__ void transposeNaive(float *odata, float* idata)
+{
+     int x = blockIdx.x*tile_SIZE + threadIdx.x;
+     int y = blockIdx.y*tile_SIZE + threadIdx.y;
+     int width = gridDim.x*tile_SIZE;
+
+     for (int j=0; j<tile_SIZE*tile_SIZE; j+=tile_SIZE) {
+               odata[x*width + (y+j)] = idata[(y+j)*width + x]; 
+
+     }
 }
 
-
+Matrix *transposeMatrix(Matrix *mat){
+    dim3 blockSize(tile_SIZE, tile_SIZE);
+    dim3 gridSize((mat->col + tile_SIZE - 1) / tile_SIZE, (mat->row + tile_SIZE - 1) / tile_SIZE);
+    float *A;
+    cudaMalloc(&A, sizeof(float)*mat->col *mat->row);
+    // transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
+    transposeNaive(A, mat-M);
+    cudaFree(mat->M);
+    mat->M = A;
+    // int tmp = mat->row;
+    // mat->row = mat->col;
+    // mat->col = tmp;
+    return mat;
+}
 
 // Matrix *eyeMat(Matrix*dMat, int inx){
 //     if(dMat->row != 1){

@@ -26,16 +26,13 @@ int main(){
 
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
-    printMatrix(A);
-    Matrix *B = makeMatrix(5, 7, 0);
-    Matrix *C = makeMatrix(5, 7, 0);
-    copyMatrix(B, A);
-    copyMatrix(C, B);
-    infoMatrix(C);
-    copyMatrix(A, C);
+    Matrix *B = copyMatrix(makeMatrix(5, 7, 1), A);
+    Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
+    A = copyMatrix(A, C);
     printMatrix(A);
 
-
+    B = transposeMatrix(copyMatrix(B, A));
+    printMatrix(copyMatrix(makeMatrix(B->row, B->col, 0), B));
 }
 
 //쿠다를 해제한다고 해서 할당된 메모리가 그냥 의미없이 사라지는 것이 아니다. 마치 휴지통에 지운다고 해서
