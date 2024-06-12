@@ -82,7 +82,7 @@ int main(){
     int out_channel = 3;
     Matrix *A = makeMatrix(16, 16, 0);
     dummyMatrix(A);
-    printMatrix(convtoMatMul(A, input_size,kernal_size, stride, out_channel));
+    // printMatrix(convtoMatMul(A, input_size,kernal_size, stride, out_channel));
     printf("\nmin:%lf", -(__DBL_MAX__));
     
 }
