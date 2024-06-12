@@ -66,7 +66,7 @@ __global__ void flashAttention(float *dQ, float *dK, float *dV,float * dO, int N
     //     }
     // }
 }
-+
+
 
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
