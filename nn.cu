@@ -199,12 +199,12 @@ int main(){
         // printf("%d\n",(int)label->M[i]);
         loss -= log(O->M[i * O->col + (int)label->M[i]]);
     }
-    
-    printf("loss : %f\n", loss);
-//     //////////////////////////////////=BACKWARD PASS=/////////////////////////////////
-//     //O_i-Y_i
 
-//     dY = copyMatrix(label, 1);
+    printf("loss : %f\n", loss);
+    //////////////////////////////////=BACKWARD PASS=/////////////////////////////////
+    //O_i-Y_i
+    dlabel = copyMatrix(dlabel, label);
+    
 //     matSub(dSigma[NUM_HIDDEN_LAYER-1], dO, dY);
 
     return 0;
