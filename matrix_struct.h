@@ -17,21 +17,25 @@ typedef struct Matrix {
 // Function Prototypes
 Matrix* makeMatrix(int row, int col, int device_type);  //make matrix and allocate memory
 void freeMatrix(Matrix *mat);                           //free memory
+
+void infoMatrix(Matrix *mat);
 void printMatrix(Matrix *mat);                          //print CPU matrix
+
 Matrix* copyMatToDevice(Matrix *mat, int device_type);  //deep copy matrix to other device
 Matrix* copyMatToHost(Matrix *dMat);
 // Matrix* copyMatrix(Matrix *mat, int device_type);  //deep copy matrix to other device
 Matrix* copyMatrix(Matrix *dst, Matrix *src);
-// Matrix* matmul(Matrix *dA, Matrix *dB);
+// Matrix* moveMatrix(Matrix *mat, int device_type);
 Matrix *matmul(Matrix*dA, Matrix *dB);
 Matrix *matmul_inline(Matrix*dC, Matrix*dA, Matrix *dB);
 Matrix *matmul_Bias(Matrix*dA, Matrix *dB, Matrix *dBias);
 Matrix *matmul_Bias_inline(Matrix*res, Matrix*dA, Matrix *dB, Matrix *dBias);
-Matrix* moveMatrix(Matrix *mat, int device_type);
 Matrix* ReLU_inline(Matrix *mat);
-void infoMatrix(Matrix *mat);
+
 Matrix *softMax_Rowwise_inline(Matrix *dRes, Matrix *dMat);
+
 Matrix *matAdd(Matrix *dMat, Matrix *dA, Matrix *dB);
 Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB);
+
 Matrix *transposeMatrix(Matrix *mat);
 #endif // MATRIX_H

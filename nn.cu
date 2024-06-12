@@ -100,8 +100,8 @@ int main(){
 
     // 여기서는 디바이스 메모리 할당 및 초기화 한다. copy메모리로 메모리를 받아야 하기 때문에 앞에서 한번에 못한다.
     
-    Matrix *dInput = moveMatrix(input, 1);
-    Matrix *dlabel = moveMatrix(label, 1);
+    Matrix *dInput;
+    Matrix *dlabel;
 
     Matrix *dW[NUM_HIDDEN_LAYER + 1];//W
     Matrix *dB[NUM_HIDDEN_LAYER + 1];//bias
@@ -118,10 +118,13 @@ int main(){
 
 
 ///////////////////////////////dW & dB memory copy[0~3]//////////////////////////////////
+    dInput = makeMatrix(input->row,input->col, 1);
+    dlabel = makeMatrix(label->row, label->col, 1);
+
 
     for(int i=0; i <= NUM_HIDDEN_LAYER; i++){
-        dW[i] = copyMatrix(W[i], 1);// 이거 move로 바꿔도 되는 거 아닌가????? 일단은 넘어가자. 근데 필요하진 않을듯
-        dB[i] = copyMatrix(B[i], 1);// 이거도 마찬가지
+        dW[i] = copyMatrix(makeMatrix(W[i]->row, W[i]->col, 1),W[i]);// 이거 move로 바꿔도 되는 거 아닌가????? 일단은 넘어가자. 근데 필요하진 않을듯
+        dB[i] = copyMatrix(makeMatrix(B[i]->row, B[i]->col, 1),B[i]);// 이거도 마찬가지
     }
 
     //dA MATRIX ALLOC
