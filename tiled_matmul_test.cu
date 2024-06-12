@@ -3,6 +3,18 @@
 #include<unistd.h>
 #include<cuda_runtime.h>
 #include <stdio.h>
+#include <iostream>
+
+#define cudaCheckError(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
         float dm = i;
@@ -27,12 +39,15 @@ int main(){
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
     Matrix *B = copyMatrix(makeMatrix(5, 7, 1), A);
+    infoMatrix(B);
     Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
     A = copyMatrix(A, C);
     printMatrix(A);
-
-    B = transposeMatrix(copyMatrix(B, A));
+    transposeMatrix(B);
     printMatrix(copyMatrix(makeMatrix(B->row, B->col, 0), B));
+
+    cudaCheckError(cudaGetLastError());
+    cudaCheckError(cudaDeviceSynchronize());
 }
 
 //쿠다를 해제한다고 해서 할당된 메모리가 그냥 의미없이 사라지는 것이 아니다. 마치 휴지통에 지운다고 해서

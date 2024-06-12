@@ -43,15 +43,18 @@ void freeMatrix(Matrix *mat) {
 
 void printMatrix(Matrix *mat){
     if(mat->device_type){
-        printf("GPU mem can not be printed");
+        printf("printMatrix : GPU mem can not be printed\n");
         return;
     }
+    printf("=\n");
+    infoMatrix(mat);
     for(int i=0; i < mat->row; i++){
         for(int j=0; j < mat->col; j++){
             printf("%f\t", mat->M[i * mat->col + j]);
         }
         printf("\n");
     }
+    printf("=\n");
 }
 
 void infoMatrix(Matrix *mat){
@@ -329,52 +332,33 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
 //     //     M_out[row * row_size + col] = s_tile[threadIdx.x][threadIdx.y];
 //     // }
 // }
-__global__ void transposeNaive(float *odata, float* idata)
-{
-     int x = blockIdx.x*tile_SIZE + threadIdx.x;
-     int y = blockIdx.y*tile_SIZE + threadIdx.y;
-     int width = gridDim.x*tile_SIZE;
+__global__ void transposeNaive(float *odata, float* idata, int row_size, int col_size) {
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-     for (int j=0; j<tile_SIZE*tile_SIZE; j+=tile_SIZE) {
-               odata[x*width + (y+j)] = idata[(y+j)*width + x]; 
-
-     }
+    if (x < col_size && y < row_size) {
+        odata[y * col_size + x] = idata[x * col_size + y];
+    }
 }
 
 Matrix *transposeMatrix(Matrix *mat){
-    dim3 blockSize(tile_SIZE, tile_SIZE);
-    dim3 gridSize((mat->col + tile_SIZE - 1) / tile_SIZE, (mat->row + tile_SIZE - 1) / tile_SIZE);
+
     float *A;
-    cudaMalloc(&A, sizeof(float)*mat->col *mat->row);
-    // transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
-    transposeNaive(A, mat-M);
-    cudaFree(mat->M);
-    mat->M = A;
-    // int tmp = mat->row;
-    // mat->row = mat->col;
-    // mat->col = tmp;
+    if(mat->device_type){       //GPU
+        cudaSetDevice(mat->device_type-1);
+        cudaMalloc(&A, sizeof(float)* mat->col * mat->row);
+        dim3 blockSize(tile_SIZE, tile_SIZE);
+        dim3 gridSize((mat->col + tile_SIZE - 1) / tile_SIZE, (mat->row + tile_SIZE - 1) / tile_SIZE);
+        // transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
+        transposeNaive<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
+        cudaFree(mat->M);
+        mat->M = A;
+    }else{                      //CPU
+
+    }
+    int tmp = mat->row;
+    mat->row = mat->col;
+    mat->col = tmp;
     return mat;
 }
-
-// Matrix *eyeMat(Matrix*dMat, int inx){
-//     if(dMat->row != 1){
-//         printf("row of eyemat should be 1\n");
-//         return NULL;
-//     }
-    
-//     return dMat;
-// }
-
-// Matrix *softMax_Rowwise_inline(Matrix *res_Mat, Matrix *mat){
-//     for(int i=0; i < mat->row; i++){
-//         double tmp = 0.0;
-//         for(int j=0; j < mat -> col; j++){
-//             tmp += exp(mat->M[i * mat->col + j]);
-//         }
-//         for(int j=0; j < mat -> col; j++){
-//             res_Mat->M[i * mat->col + j] = exp(mat->M[i * mat->col + j]) / tmp;
-//         }
-//     }
-//     return res_Mat;
-// }
 
