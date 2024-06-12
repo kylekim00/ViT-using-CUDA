@@ -6,6 +6,10 @@
 
 #include "matrix_struct.h"
 
+#define NUM_HIDDEN_LAYER 3
+
+
+
 double generateStandardNormal() {
     double u1, u2, w, mult;
     static double x1, x2;
@@ -36,7 +40,6 @@ void dummyMatrix(Matrix *mat){
     }
 }
 
-#define NUM_HIDDEN_LAYER 3
 
 int main(){
     // srand(10); // Seed the random number generator
@@ -49,20 +52,22 @@ int main(){
     int input_Layer = 400;
     int output_Layer = 10;
     int hidden_Layer_size[NUM_HIDDEN_LAYER] = {50, 30, 40};
-    //////////////////////// DATA LABEL ALLOCATION /////////////////////////////////
+//////////////////////// DATA LABEL ALLOCATION /////////////////////////////////
 
     Matrix *input;//우리의 데이터. // forward and backward
     Matrix *label;
 
     input = makeMatrix(batch_size, input_Layer, 0);//input 공간할당
-    dummyMatrix(input);
-    label = makeMatrix(batch_size, 1, 0);
+    label = makeMatrix(1, batch_size, 0);//label 공간할당.
 
-    /////////////////////// WEIGHT BIAS ALLOCATION /////////////////////////////
+
+/////////////////////// WEIGHT BIAS ALLOCATION /////////////////////////////
 
     Matrix *W[NUM_HIDDEN_LAYER+1];   //W Matrix 배열
     Matrix *B[NUM_HIDDEN_LAYER+1];
-    
+    Matrix *O;
+
+
     W[0] = makeMatrix(input_Layer, hidden_Layer_size[0], 0);//W[0] alloc
     B[0] = makeMatrix(1, hidden_Layer_size[0], 0);
     for(int i=1; i < NUM_HIDDEN_LAYER; i++){
@@ -71,8 +76,9 @@ int main(){
     }
     W[NUM_HIDDEN_LAYER] = makeMatrix(hidden_Layer_size[NUM_HIDDEN_LAYER-1],output_Layer, 0);//W[n-1] alloc
     B[NUM_HIDDEN_LAYER] = makeMatrix(1, output_Layer, 0);
+    O = makeMatrix(batch_size, output_Layer, 0);
 
-    ///////////////////// WEIGHT BIAS INITIALIZATION /////////////////////////////
+///////////////////// WEIGHT BIAS INITIALIZATION /////////////////////////////
 
     //Weights dimension check
     printf("=====W dimension=====\n");
@@ -85,37 +91,41 @@ int main(){
     }
     printf("=====================\n");
     
-    ///////////////////////////////DATA TRANSFER FROM FILE/////////////////////////////////
-    dummyMatrix(input);//지금은 더미데이터지만 파일에서 가져와야한다. 
 
 
 
 
 
-    //////////////////////////////DEVICE MEMORY ALLOCATION & INITIALIZATION/////////////////////////////////////
+
+//////////////////////////////DEVICE MEMORY ALLOCATION & INITIALIZATION/////////////////////////////////////
 
     // 여기서는 디바이스 메모리 할당 및 초기화 한다. copy메모리로 메모리를 받아야 하기 때문에 앞에서 한번에 못한다.
     
-    Matrix *dInput = moveMatrix(input, 1);
+    Matrix *dInput;
+    Matrix *dlabel;
+
     Matrix *dW[NUM_HIDDEN_LAYER + 1];//W
     Matrix *dB[NUM_HIDDEN_LAYER + 1];//bias
     
     Matrix *dA[NUM_HIDDEN_LAYER + 1];//activation function layer
     Matrix *dO;//last softmax layer
+    Matrix *dY;
 
-
-    Matrix *dSigma[NUM_HIDDEN_LAYER + 1];//차원은 dA와 같다.
-    Matrix *dW_deriv[NUM_HIDDEN_LAYER + 1];//차원은 dW와 같다. 
-    Matrix *dB_deriv[NUM_HIDDEN_LAYER + 1];//차원은 dB와 같다.
+    Matrix *dSigma[NUM_HIDDEN_LAYER + 1];//역전파할 때의 dA미분값, 차원은 dA와 같다.
+    Matrix *dW_deriv[NUM_HIDDEN_LAYER + 1];//역전파 할떄의 dW미분값, 차원은 dW와 같다. 
+    Matrix *dB_deriv[NUM_HIDDEN_LAYER + 1];//역전파 할 때의 dB미분값, 차원은 dB와 같다.
 
     Matrix *tmp;//그냥 일단 가지고 있자. 
 
 
-    ///////////////////////////////dW & dB memory copy[0~3]//////////////////////////////////
+///////////////////////////////dW & dB memory copy[0~3]//////////////////////////////////
+    dInput = makeMatrix(input->row,input->col, 1);
+    dlabel = makeMatrix(label->row, label->col, 1);
+
 
     for(int i=0; i <= NUM_HIDDEN_LAYER; i++){
-        dW[i] = copyMatrix(W[i], 1);// 이거 move로 바꿔도 되는 거 아닌가????? 일단은 넘어가자. 근데 필요하진 않을듯
-        dB[i] = copyMatrix(B[i], 1);// 이거도 마찬가지
+        dW[i] = copyMatrix(makeMatrix(W[i]->row, W[i]->col, 1),W[i]);// 이거 move로 바꿔도 되는 거 아닌가????? 일단은 넘어가자. 근데 필요하진 않을듯
+        dB[i] = copyMatrix(makeMatrix(B[i]->row, B[i]->col, 1),B[i]);// 이거도 마찬가지
     }
 
     //dA MATRIX ALLOC
@@ -153,7 +163,17 @@ int main(){
     for(int i=0; i< sizeof(dA)/sizeof(Matrix*); i++){
         infoMatrix(dA[i]);
     }
-    ////////////////////////////////=FORWARD PASS=/////////////////////////////////
+
+/////////////////////////////DATA TRANSFER FROM FILE/////////////////////////////////
+    
+    
+    
+    dummyMatrix(input);//지금은 더미데이터지만 파일에서 가져와야한다. 
+
+
+
+
+////////////////////////////////=FORWARD PASS=/////////////////////////////////
     
     //나중에 메모리를 해제하는 것은 dA만으로 충분하다.
     dA[0] = ReLU_inline(matmul_Bias_inline(dA[0], dInput, dW[0], dB[0]));
@@ -168,19 +188,24 @@ int main(){
     //softMax 함수
     dO = softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
 
-    ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
+//     ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
 
     printf("dO:\n");
-    Matrix *O = copyMatrix(dO, 0);
+    O = copyMatrix(O, dO);
     printMatrix(O);
 
     float loss = 0;
     for(int i=0; i < O->row; i++){//batch
-        printf("%d\n",(int)label->M[i]);
+        // printf("%d\n",(int)label->M[i]);
         loss -= log(O->M[i * O->col + (int)label->M[i]]);
     }
+
     printf("loss : %f\n", loss);
-    // ////////////////////////////////=BACKWARD PASS=/////////////////////////////////
+    //////////////////////////////////=BACKWARD PASS=/////////////////////////////////
+    //O_i-Y_i
+    dlabel = copyMatrix(dlabel, label);
+    
+//     matSub(dSigma[NUM_HIDDEN_LAYER-1], dO, dY);
 
     return 0;
 }

@@ -1,5 +1,6 @@
 //codefor Matrix functions
 #include <stdio.h>
+#include<stdlib.h>
 #include <math.h>
 #include <cuda_runtime.h>
 #include "matrix_struct.h"
@@ -43,72 +44,55 @@ void freeMatrix(Matrix *mat) {
 
 void printMatrix(Matrix *mat){
     if(mat->device_type){
-        printf("GPU mem can not be printed");
+        printf("printMatrix : GPU mem can not be printed\n");
         return;
     }
+    printf("=\n");
+    infoMatrix(mat);
     for(int i=0; i < mat->row; i++){
         for(int j=0; j < mat->col; j++){
             printf("%f\t", mat->M[i * mat->col + j]);
         }
         printf("\n");
     }
+    printf("=\n");
 }
 
 void infoMatrix(Matrix *mat){
     printf("device : %d dim:(%d, %d)\n", mat->device_type,mat->row, mat->col);
 }
 
-Matrix* copyMatToDevice(Matrix *mat, int device_type){
-    if(!mat->device_type){
-        cudaSetDevice(device_type-1);
-        Matrix *dMat = makeMatrix(mat->row, mat->col, device_type);
-        cudaMemcpy(dMat->M, mat->M, mat->row * mat->col * sizeof(float), cudaMemcpyHostToDevice);
-        return dMat;
-    }
-    return NULL;
-}
 
-Matrix* copyMatToHost(Matrix *dMat){
-    if(dMat->device_type){
-        Matrix * mat = makeMatrix(dMat->row, dMat->col, 0);
-        cudaSetDevice(dMat->device_type-1);
-        cudaMemcpy(mat->M, dMat->M, mat->row * mat->col * sizeof(float), cudaMemcpyDeviceToHost);
-        return mat;
-    }
-    return NULL;
-}
 
-Matrix* copyMatrix(Matrix *mat, int device_type){
-    if(!device_type){//device_type == cpu
-            Matrix * mat_copy = makeMatrix(mat->row, mat->col, 0);
-            cudaSetDevice(mat->device_type-1);
-            cudaMemcpy(mat_copy->M, mat->M, mat_copy->row * mat_copy->col * sizeof(float), cudaMemcpyDeviceToHost);
-            return mat_copy;
-    }else {
-        if(!mat->device_type){
-            int tmp;
-            cudaGetDeviceCount(&tmp);
-            if(device_type > 0 && device_type <= tmp){
-                return copyMatToDevice(mat, device_type);
-            }else{
-                printf("invalid device type\n");
-                return NULL;
-            }
-        }else{
-            //여기에 devicetodevice를 조진다.
-            printf("invalid device type\n");
-            return NULL;
-        }
-    }
-}
-
-Matrix* moveMatrix(Matrix *mat, int device_type){
-    Matrix *tmp_mat = copyMatrix(mat, device_type);
-    if(!tmp_mat)
+Matrix* copyMatrix(Matrix *dst, Matrix *src){
+    if(dst->row != src->row || dst->col != src->col){
+        printf("copyMatrix : shape of dst and src doesn't match.\n");
         return NULL;
-    freeMatrix(mat);
-    return tmp_mat;
+    }
+    if(!dst->device_type && !src->device_type){ //CPU to CPU
+        for(int i=0; i < dst->row * dst->col; i++)
+            dst->M[i] = src->M[i];
+    }
+    else if(dst->device_type && src->device_type){
+        cudaMemcpy(dst->M, src->M, dst->row * dst->col * sizeof(float), cudaMemcpyDeviceToDevice);
+    }
+    else if(dst->device_type){
+        cudaMemcpy(dst->M, src->M, dst->row * dst->col * sizeof(float), cudaMemcpyHostToDevice);
+    }else{
+        cudaMemcpy(dst->M, src->M, dst->row * dst->col * sizeof(float), cudaMemcpyDeviceToHost);
+    }
+    return dst;
 }
+
+// Matrix* moveMatrix(Matrix *mat, int device_type){
+//     cudaSetDevice(device_type-1);
+//     Matrix *dMat = makeMatrix(mat->row, mat->col, device_type);
+//     Matrix *tmp_mat = copyMatrix(mat, device_type);
+//     if(!tmp_mat)
+//         return NULL;
+//     freeMatrix(mat);
+//     return tmp_mat;
+// }
 
 
 __global__ void tiledMM(float *A, float *B, float *C, float *bias, int M, int N, int K) {
@@ -324,11 +308,12 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
         matsub_<<<(size+tile_SIZE*tile_SIZE -1)/tile_SIZE,tile_SIZE * tile_SIZE>>>(dMat->M, dA->M, dB->M, dA->row * dA->col);
         return dMat;
     }else{
-        printf("\"matAdd\" : one of dMat, dA, dB's type does not match\n");
+        printf("\"matAdd\" : one of dMat, dA, dB's type does not match\n"); 
         return NULL;
     }
 }
 
+<<<<<<< HEAD
 
 // Matrix * conv2D(Matrix *dMat, Matrix *dA, Matrix *dB){
     
@@ -339,17 +324,66 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
 // Matrix *eyeMat(Matrix*dEye,Matrix *dMat){
 //     for(int i=0; i < dMat*)
 // }
+=======
+__global__ void transposeMatrix_(float* M_out, float *M, int row_size, int col_size){
+    __shared__ float s_tile[tile_SIZE][tile_SIZE+1]; // bank conflict를 피하기 위해 +1을 추가
+>>>>>>> bprp2_tmp
 
-// Matrix *softMax_Rowwise_inline(Matrix *res_Mat, Matrix *mat){
-//     for(int i=0; i < mat->row; i++){
-//         double tmp = 0.0;
-//         for(int j=0; j < mat -> col; j++){
-//             tmp += exp(mat->M[i * mat->col + j]);
-//         }
-//         for(int j=0; j < mat -> col; j++){
-//             res_Mat->M[i * mat->col + j] = exp(mat->M[i * mat->col + j]) / tmp;
-//         }
-//     }
-//     return res_Mat;
-// }
+    int row = blockIdx.y * tile_SIZE + threadIdx.y;
+    int col = blockIdx.x * tile_SIZE + threadIdx.x;
 
+    // 원본 행렬의 값을 타일에 로드
+    if(row < row_size && col < col_size){
+        s_tile[threadIdx.y][threadIdx.x] = M[row * col_size + col];
+    }
+
+        __syncthreads();
+
+    // 전치된 값을 출력 행렬에 저장
+    // if(row < row_size && col < col_size){
+    //     M_out[row * col_size + col] = s_tile[threadIdx.y][threadIdx.x];
+    // }
+    row = blockIdx.x * tile_SIZE + threadIdx.y;
+    col = blockIdx.y * tile_SIZE + threadIdx.x;
+
+    if(row < col_size && col < row_size){
+        M_out[row * row_size + col] = s_tile[threadIdx.x][threadIdx.y];
+    }
+}
+
+__global__ void transposeNaive(float *odata, float* idata, int row_size, int col_size) {
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x < col_size && y < row_size) {
+        odata[y * col_size + x] = idata[x * col_size + y];
+    }
+}
+
+Matrix *transposeMatrix(Matrix *mat){
+
+    float *A;
+    if(mat->device_type){       //GPU
+        cudaSetDevice(mat->device_type-1);              //언제나 셋디바이스 조심
+        cudaMalloc(&A, sizeof(float)* mat->col * mat->row);
+        dim3 blockSize(tile_SIZE, tile_SIZE);
+        dim3 gridSize((mat->col + tile_SIZE - 1) / tile_SIZE, (mat->row + tile_SIZE - 1) / tile_SIZE);
+        // transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
+        transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
+        cudaFree(mat->M);
+        mat->M = A;
+    }else{                //CPU
+        int tmp;
+        for(int i=0; i < mat->row; i++){
+            for(int j=0; j < mat->col; j++){
+                tmp = mat->M[i*mat->col + j];
+                mat->M[i*mat->col + j] = mat->M[j*mat->row + i];
+                mat->M[j*mat->row + i] = tmp;
+            }
+        }
+    }
+    int tmp = mat->row;
+    mat->row = mat->col;
+    mat->col = tmp;
+    return mat;
+}
