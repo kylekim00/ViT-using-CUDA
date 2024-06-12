@@ -308,30 +308,31 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
     }
 }
 
-// __global__ void transposeMatrix_(float* M_out, float *M, int row_size, int col_size){
-//     __shared__ float s_tile[tile_SIZE][tile_SIZE+1]; // bank conflict를 피하기 위해 +1을 추가
+__global__ void transposeMatrix_(float* M_out, float *M, int row_size, int col_size){
+    __shared__ float s_tile[tile_SIZE][tile_SIZE+1]; // bank conflict를 피하기 위해 +1을 추가
 
-//     int row = blockIdx.y * tile_SIZE + threadIdx.y;
-//     int col = blockIdx.x * tile_SIZE + threadIdx.x;
+    int row = blockIdx.y * tile_SIZE + threadIdx.y;
+    int col = blockIdx.x * tile_SIZE + threadIdx.x;
 
-//     // 원본 행렬의 값을 타일에 로드
-//     if(row < row_size && col < col_size){
-//         s_tile[threadIdx.y][threadIdx.x] = M[row * col_size + col];
-//     }
+    // 원본 행렬의 값을 타일에 로드
+    if(row < row_size && col < col_size){
+        s_tile[threadIdx.y][threadIdx.x] = M[row * col_size + col];
+    }
 
-//         __syncthreads();
+        __syncthreads();
 
-//     // 전치된 값을 출력 행렬에 저장
-//     if(row < row_size && col < col_size){
-//         M_out[row * col_size + col] = s_tile[threadIdx.y][threadIdx.x];
-//     }
-//     // row = blockIdx.x * tile_SIZE + threadIdx.y;
-//     // col = blockIdx.y * tile_SIZE + threadIdx.x;
+    // 전치된 값을 출력 행렬에 저장
+    // if(row < row_size && col < col_size){
+    //     M_out[row * col_size + col] = s_tile[threadIdx.y][threadIdx.x];
+    // }
+    row = blockIdx.x * tile_SIZE + threadIdx.y;
+    col = blockIdx.y * tile_SIZE + threadIdx.x;
 
-//     // if(row < col_size && col < row_size){
-//     //     M_out[row * row_size + col] = s_tile[threadIdx.x][threadIdx.y];
-//     // }
-// }
+    if(row < col_size && col < row_size){
+        M_out[row * row_size + col] = s_tile[threadIdx.x][threadIdx.y];
+    }
+}
+
 __global__ void transposeNaive(float *odata, float* idata, int row_size, int col_size) {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -345,16 +346,23 @@ Matrix *transposeMatrix(Matrix *mat){
 
     float *A;
     if(mat->device_type){       //GPU
-        cudaSetDevice(mat->device_type-1);
+        cudaSetDevice(mat->device_type-1);              //언제나 셋디바이스 조심
         cudaMalloc(&A, sizeof(float)* mat->col * mat->row);
         dim3 blockSize(tile_SIZE, tile_SIZE);
         dim3 gridSize((mat->col + tile_SIZE - 1) / tile_SIZE, (mat->row + tile_SIZE - 1) / tile_SIZE);
         // transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
-        transposeNaive<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
+        transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
         cudaFree(mat->M);
         mat->M = A;
-    }else{                      //CPU
-
+    }else{                //CPU
+        int tmp;
+        for(int i=0; i < mat->row; i++){
+            for(int j=0; j < mat->col; j++){
+                tmp = mat->M[i*mat->col + j];
+                mat->M[i*mat->col + j] = mat->M[j*mat->row + i];
+                mat->M[j*mat->row + i] = tmp;
+            }
+        }
     }
     int tmp = mat->row;
     mat->row = mat->col;

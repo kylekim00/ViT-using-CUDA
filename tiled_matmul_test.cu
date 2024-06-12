@@ -43,8 +43,7 @@ int main(){
     Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
     A = copyMatrix(A, C);
     printMatrix(A);
-    transposeMatrix(B);
-    printMatrix(copyMatrix(makeMatrix(B->row, B->col, 0), B));
+    printMatrix(copyMatrix(makeMatrix(B->row, B->col, 0), transposeMatrix(B)));
 
     cudaCheckError(cudaGetLastError());
     cudaCheckError(cudaDeviceSynchronize());
