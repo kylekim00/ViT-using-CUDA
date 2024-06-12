@@ -361,4 +361,3 @@ Matrix *transposeMatrix(Matrix *mat){
     mat->col = tmp;
     return mat;
 }
-
