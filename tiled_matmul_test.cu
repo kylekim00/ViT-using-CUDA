@@ -17,11 +17,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
-<<<<<<< HEAD
-        float dm = i*i/10;
-=======
         float dm = i;
->>>>>>> bprp2_tmp
         mat->M[i] = dm;
     }
     return mat;
@@ -42,28 +38,12 @@ int main(){
 
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
-<<<<<<< HEAD
-    printMatrix(A);
-    Matrix *dA = moveMatrix(A, 1);
-    dA = softMax_Rowwise_inline(dA, dA);
-    A = moveMatrix(dA, 0);
-    printMatrix(A);   
-
-    // dummyMatrix(B);
-    // printMatrix(A);
-    // printf("==\n");
-    // Matrix *dA = copyMatrix(A, 1);
-    // printMatrix(moveMatrix(softMax_Rowwise_inline(dA, dA), 0));
-    // Matrix *B = makeMatrix(2, 3, 0);
-    // dummyMatrix(B);
-=======
     Matrix *B = copyMatrix(makeMatrix(5, 7, 1), A);
     infoMatrix(B);
     Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
     A = copyMatrix(A, C);
     printMatrix(A);
     printMatrix(copyMatrix(makeMatrix(B->row, B->col, 0), transposeMatrix(B)));
->>>>>>> bprp2_tmp
 
     cudaCheckError(cudaGetLastError());
     cudaCheckError(cudaDeviceSynchronize());

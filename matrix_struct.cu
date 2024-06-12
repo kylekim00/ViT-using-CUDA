@@ -313,21 +313,8 @@ Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB){
     }
 }
 
-<<<<<<< HEAD
-
-// Matrix * conv2D(Matrix *dMat, Matrix *dA, Matrix *dB){
-    
-// }
-
-
-
-// Matrix *eyeMat(Matrix*dEye,Matrix *dMat){
-//     for(int i=0; i < dMat*)
-// }
-=======
 __global__ void transposeMatrix_(float* M_out, float *M, int row_size, int col_size){
     __shared__ float s_tile[tile_SIZE][tile_SIZE+1]; // bank conflict를 피하기 위해 +1을 추가
->>>>>>> bprp2_tmp
 
     int row = blockIdx.y * tile_SIZE + threadIdx.y;
     int col = blockIdx.x * tile_SIZE + threadIdx.x;
