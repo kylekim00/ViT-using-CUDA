@@ -76,6 +76,7 @@ int main(){
     }
     W[NUM_HIDDEN_LAYER] = makeMatrix(hidden_Layer_size[NUM_HIDDEN_LAYER-1],output_Layer, 0);//W[n-1] alloc
     B[NUM_HIDDEN_LAYER] = makeMatrix(1, output_Layer, 0);
+    O = makeMatrix(batch_size, output_Layer, 0);
 
 ///////////////////// WEIGHT BIAS INITIALIZATION /////////////////////////////
 
@@ -174,38 +175,37 @@ int main(){
 
 ////////////////////////////////=FORWARD PASS=/////////////////////////////////
     
-//     //나중에 메모리를 해제하는 것은 dA만으로 충분하다.
-//     dA[0] = ReLU_inline(matmul_Bias_inline(dA[0], dInput, dW[0], dB[0]));
+    //나중에 메모리를 해제하는 것은 dA만으로 충분하다.
+    dA[0] = ReLU_inline(matmul_Bias_inline(dA[0], dInput, dW[0], dB[0]));
 
-//     for(int i=1; i < NUM_HIDDEN_LAYER; i++){
-//         dA[i] = ReLU_inline(matmul_Bias_inline(dA[i], dA[i-1], dW[i], dB[i]));//여기 계속 make하네 꼭 iteration마다 해제 해줘야함.
-//     }
+    for(int i=1; i < NUM_HIDDEN_LAYER; i++){
+        dA[i] = ReLU_inline(matmul_Bias_inline(dA[i], dA[i-1], dW[i], dB[i]));//여기 계속 make하네 꼭 iteration마다 해제 해줘야함.
+    }
 
 
-//     dA[NUM_HIDDEN_LAYER] = matmul_Bias_inline(dA[NUM_HIDDEN_LAYER], dA[NUM_HIDDEN_LAYER-1], dW[NUM_HIDDEN_LAYER], dB[NUM_HIDDEN_LAYER]);//마지막 레이어는 activation 을 통과하면 안됨.
+    dA[NUM_HIDDEN_LAYER] = matmul_Bias_inline(dA[NUM_HIDDEN_LAYER], dA[NUM_HIDDEN_LAYER-1], dW[NUM_HIDDEN_LAYER], dB[NUM_HIDDEN_LAYER]);//마지막 레이어는 activation 을 통과하면 안됨.
     
-//     //softMax 함수
-//     dO = softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
+    //softMax 함수
+    dO = softMax_Rowwise_inline(dO, dA[NUM_HIDDEN_LAYER]);
 
 //     ////////////////////////////////=LOSS CALCULATION=/////////////////////////////////
 
-//     printf("dO:\n");
-//     O = copyMatrix(dO, 0);
-//     printMatrix(O);
+    printf("dO:\n");
+    O = copyMatrix(O, dO);
+    printMatrix(O);
 
-//     float loss = 0;
-//     for(int i=0; i < O->row; i++){//batch
-//         printf("%d\n",(int)label->M[i]);
-//         loss -= log(O->M[i * O->col + (int)label->M[i]]);
-//     }
-//     printf("loss : %f\n", loss);
+    float loss = 0;
+    for(int i=0; i < O->row; i++){//batch
+        // printf("%d\n",(int)label->M[i]);
+        loss -= log(O->M[i * O->col + (int)label->M[i]]);
+    }
+    
+    printf("loss : %f\n", loss);
 //     //////////////////////////////////=BACKWARD PASS=/////////////////////////////////
 //     //O_i-Y_i
 
 //     dY = copyMatrix(label, 1);
 //     matSub(dSigma[NUM_HIDDEN_LAYER-1], dO, dY);
-    
-
 
     return 0;
 }
