@@ -9,7 +9,7 @@
 //     int col;
 // }Matrix;
 #define tile_SIZE 8
-__global__ void flashAttention(float *dQ, float *dK, float *dV,float * dO, int N, int K, int M){
+__global__ void flashAttention(float * dO, float *dQ, float *dK, float *dV, float dm, float * dl, int N, int K, int M){
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -75,14 +75,19 @@ Matrix* dummyMatrix(Matrix *mat){
     }
     return mat;
 }
+
+
 int main(){
-    int input_size = 16;
-    int kernal_size = 3;
-    int stride = 2;
-    int out_channel = 3;
-    Matrix *A = makeMatrix(16, 16, 0);
-    dummyMatrix(A);
-    // printMatrix(convtoMatMul(A, input_size,kernal_size, stride, out_channel));
-    printf("\nmin:%lf", -(__DBL_MAX__));
+    int model_size = 8;
+    int token_size = 32;
+    Matrix *wQ = makeMatrix(token_size, model_size, 0);
+    dummyMatrix(wQ);
+    Matrix *X = makeMatrix(token_size, model_size, 0);
+    dummyMatrix(X);
     
+    Matrix *dX = copyMatrix(makeMatrixbyShape(X, 1), X);
+    dX = matAdd(dX, dX, dX);
+    printMatrix(copyMatrix(X, dX));
+    
+    // Matrix *Q = matmul_inline(makeMatrix(wQ->row, X->col, 1), wQ, transposeMatrix_self(dX));
 }

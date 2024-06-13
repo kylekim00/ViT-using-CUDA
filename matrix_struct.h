@@ -16,6 +16,8 @@ typedef struct Matrix {
 
 // Function Prototypes
 Matrix* makeMatrix(int row, int col, int device_type);  //make matrix and allocate memory
+Matrix* makeMatrixbyShape(Matrix* M, int device_type);
+
 void freeMatrix(Matrix *mat);                           //free memory
 
 void infoMatrix(Matrix *mat);
@@ -37,5 +39,7 @@ Matrix *softMax_Rowwise_inline(Matrix *dRes, Matrix *dMat);
 Matrix *matAdd(Matrix *dMat, Matrix *dA, Matrix *dB);
 Matrix *matSub(Matrix *dMat, Matrix *dA, Matrix *dB);
 
-Matrix *transposeMatrix(Matrix *mat);
+Matrix *transposeMatrix_self(Matrix *mat);
+// Matrix *transposeMatrix(Matrix *dst, Matrix *src);
+
 #endif // MATRIX_H
