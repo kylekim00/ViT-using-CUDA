@@ -9,7 +9,7 @@
 //     int col;
 // }Matrix;
 #define tile_SIZE 8
-__global__ void flashAttention(float * dO, float *dQ, float *dK, float *dV, float dm, float * dl, int N, int K, int M){
+__global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, float *M, float * L, float *dM, float *dL, int num_Token, int model_Dim){
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -18,13 +18,13 @@ __global__ void flashAttention(float * dO, float *dQ, float *dK, float *dV, floa
 
     float tmp = 0.0f;
     //=======================tiled Matrix Multiplication=============================
-    for (int i = 0; i < (K + tile_SIZE - 1) / tile_SIZE; i++) {
-        if (row < M && (i * tile_SIZE + threadIdx.x) < K)
+    for (int i = 0; i < (model_Dim + tile_SIZE - 1) / tile_SIZE; i++) {
+        if (row < num_Token && (i * tile_SIZE + threadIdx.x) < model_Dim)
             s_a[threadIdx.y][threadIdx.x] = dQ[row * K + (i * tile_SIZE + threadIdx.x)];
         else
             s_a[threadIdx.y][threadIdx.x] = 0.0f;
 
-        if (col < N && (i * tile_SIZE + threadIdx.y) < K)
+        if (col < num_Token && (i * tile_SIZE + threadIdx.y) < model_Dim)
             s_b[threadIdx.y][threadIdx.x] = dK[(i * tile_SIZE + threadIdx.y) * N + col];
         else
             s_b[threadIdx.y][threadIdx.x] = 0.0f;
@@ -43,13 +43,14 @@ __global__ void flashAttention(float * dO, float *dQ, float *dK, float *dV, floa
 
     //==============================SOFTMAX(ROWMAX)====================================
     
-    if(threadIdx.x){//여기서 SOFTMax 처리를 해줄 것이다.블록 당 하나의 쓰레드에서 연산을 하기 위해 쓰레드 y 인덱스가 0일때 리니어하게 더해준다. 왼쪽 벽만 값이 있는 타일을 생각해라.
-        tmp = 0;
-        for(int i=0; i < blockDim.x; i++){
-            s_b[threadIdx.y][0] = expf(s_a[threadIdx.y][i]);
-            tmp += s_b[threadIdx.y][0];
+    if(threadIdx.x == 0){//여기서 softMax 처리를 해줄 것이다.블록 당 하나의 쓰레드에서 연산을 하기 위해 쓰레드 y 인덱스가 0일때 리니어하게 더해준다. 왼쪽 벽만 값이 있는 타일을 생각해라.
+        int max_int;
+        for(int i=0; i < num_Token; i++){
+            if(M[max_int] < M[i]){
+                max_int = i;
+            }
+            // L[row*] += s_b[threadIdx.y][0];///////////////////////////여기서 잠들다
         }
-        
     }
     
     // if(i < row){
@@ -67,6 +68,39 @@ __global__ void flashAttention(float * dO, float *dQ, float *dK, float *dV, floa
     // }
 }
 
+void flashAttention(Matrix *dO, Matrix *dX, Matrix *wQ, Matrix *wK, Matrix *wV, Matrix *dM, Matrix *dL){
+
+    // if();
+    int num_Token = dX->row;
+    int model_dim = wQ->col;
+
+    //QKV 계산
+    Matrix *Q = matmul_inline(makeMatrix(dX->row, wQ->col, dX->device_type - 1), dX, wQ);
+    Matrix *K = matmul_inline(makeMatrix(dX->row, wQ->col, dX->device_type - 1), dX, wK);
+    Matrix *V = matmul_inline(makeMatrix(dX->row, wQ->col, dX->device_type - 1), dX, wV);
+
+    //M과 L 을 위한 공간만들기 하트 뿅뿅
+    float *M, *L;
+    cudaSetDevice(dX->device_type-1);
+    cudaMalloc(&M, sizeof(float) * num_Token * (V->row + tile_SIZE - 1) / tile_SIZE);
+    cudaMalloc(&L, sizeof(float) * num_Token * (V->row + tile_SIZE - 1) / tile_SIZE);
+
+    dim3 blockSize(tile_SIZE, tile_SIZE);
+    dim3 gridSize((V->row + tile_SIZE - 1) / tile_SIZE, (V->row + tile_SIZE - 1) / tile_SIZE);//N x N
+    flashAttention_<<<blockSize, gridSize>>>(dO, Q, K, V, M, L, num_Token, model_Dim);
+
+
+
+
+    //임시 메모리 해제
+    cudaFree(M);
+    cudaFree(L);
+    freeMatrix(Q);
+    freeMatrix(K);
+    freeMatrix(V);
+
+}
+
 
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
@@ -76,18 +110,28 @@ Matrix* dummyMatrix(Matrix *mat){
     return mat;
 }
 
-
 int main(){
-    int model_size = 8;
-    int token_size = 32;
-    Matrix *wQ = makeMatrix(token_size, model_size, 0);
-    dummyMatrix(wQ);
-    Matrix *X = makeMatrix(token_size, model_size, 0);
-    dummyMatrix(X);
-    
+    int model_dim = 8;
+    int num_Token = 64;
+    Matrix *wQ = dummyMatrix(makeMatrix(model_dim, model_dim, 0));
+    Matrix *wK = dummyMatrix(makeMatrix(model_dim, model_dim, 0));
+    Matrix *wV = dummyMatrix(makeMatrix(model_dim, model_dim, 0));
+    Matrix *X = dummyMatrix(makeMatrix(num_Token, model_dim, 0));
+
+    Matrix *dwQ = copyMatrix(makeMatrixbyShape(wQ, 1), wQ);
+    Matrix *dwK = copyMatrix(makeMatrixbyShape(wK, 1), wK);
+    Matrix *dwV = copyMatrix(makeMatrixbyShape(wV, 1), wV);
     Matrix *dX = copyMatrix(makeMatrixbyShape(X, 1), X);
-    dX = matAdd(dX, dX, dX);
-    printMatrix(copyMatrix(X, dX));
-    
+
+
+    Matrix *dM = makeMatrix(1, num_Token, 1);
+    Matrix *dL = makeMatrix(1, num_Token, 1);
+
+
+
+    Matrix *dO = flashAttention(makeMatrix(num_Token, model_dim), dX, dwQ, dwK, dwV, dM, dL, num_Token, model_dim);
+
+    printMatrix(copyMatrix(makeMatrixbyShape(dO, 0), dO));
+    // flashAttention(makeMatrix(num_Token, model_dim));
     // Matrix *Q = matmul_inline(makeMatrix(wQ->row, X->col, 1), wQ, transposeMatrix_self(dX));
 }

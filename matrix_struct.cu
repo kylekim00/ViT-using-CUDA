@@ -348,27 +348,27 @@ __global__ void transposeNaive(float *odata, float* idata, int row_size, int col
         odata[y * col_size + x] = idata[x * col_size + y];
     }
 }
-// Matrix *transposeMatrix(Matrix *dst, Matrix *src){
+Matrix *transposeMatrix(Matrix *dst, Matrix *src){
 
-//     if(dst->row == src->col && dst->col == src->row && dst->device_type == src->device_type){
-//         if(src->device_type){       //GPU
-//             cudaSetDevice(src->device_type-1);              //언제나 셋디바이스 조심
-//             dim3 blockSize(tile_SIZE, tile_SIZE);
-//             dim3 gridSize((src->col + tile_SIZE - 1) / tile_SIZE, (src->row + tile_SIZE - 1) / tile_SIZE);
-//             // transposeMatrix_<<<gridSize, blockSize>>>(A, mat->M, mat->row, mat->col);
-//             transposeMatrix_<<<gridSize, blockSize>>>(dst->M, src->M, src->row, src->col);
+    if((dst->row == src->col) && (dst->col == src->row) && (dst->device_type == src->device_type)){
+        if(src->device_type){       //GPU
+            cudaSetDevice(src->device_type-1);              //언제나 셋디바이스 조심
+            dim3 blockSize(tile_SIZE, tile_SIZE);
+            dim3 gridSize((src->col + tile_SIZE - 1) / tile_SIZE, (src->row + tile_SIZE - 1) / tile_SIZE);
+            transposeMatrix_<<<gridSize, blockSize>>>(dst->M, src->M, src->row, src->col);
 
-//         }else{                //CPU
-//             for(int i=0; i < src->row; i++){
-//                 for(int j=0; j < src->col; j++){
-//                     dst->M[j * dst->col + i] = src->M[i*src->col + j];
-                    
-//                 }
-//             }
-//         }
-//         return dst;
-//     }
-// }
+        }else{                //CPU
+            for(int i=0; i < src->row; i++){
+                for(int j=0; j < src->col; j++){
+                    dst->M[j * dst->col + i] = src->M[i*src->col + j];
+                }
+            }
+        }
+        return dst;
+    }
+    printf("transposeMatrix : dst, and src do not match the shape.\n");
+    return NULL;
+}
 Matrix *transposeMatrix_self(Matrix *mat){
 
     float *A;

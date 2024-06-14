@@ -39,12 +39,11 @@ int main(){
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
     Matrix *B = copyMatrix(makeMatrix(5, 7, 1), A);
-    infoMatrix(B);
     Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
     A = copyMatrix(A, C);
     printMatrix(A);
-    printMatrix(copyMatrix(makeMatrix(B->row, B->col, 0), transposeMatrix(B)));
 
+    printMatrix(copyMatrix(makeMatrix(B->col, B->row, 0) , transposeMatrix(makeMatrix(B->col, B->row, 1), B)));  //이렇게 할 경우 conflict 발생 가능 이거 생각해야함. 
     cudaCheckError(cudaGetLastError());
     cudaCheckError(cudaDeviceSynchronize());
 }
