@@ -49,7 +49,7 @@ __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, flo
             if(M[max_int] < M[i]){
                 max_int = i;
             }
-            // L[row*] += s_b[threadIdx.y][0];///////////////////////////여기서 잠들다
+            L[row*gridDim.y + blockidx.y] += s_b[threadIdx.y][0];///////////////////////////여기서 잠들다
         }
     }
     
