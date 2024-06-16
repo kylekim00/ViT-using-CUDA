@@ -43,48 +43,47 @@ __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, flo
     __syncthreads();
 
     //==============================SOFTMAX(ROWMAX)====================================
-    
-    // if((row == 0) && (col == 0)){
-    //     printf("%d %d\n", gridDim.x, gridDim.y);
-    //     for(int i=0; i < tile_SIZE; i++){
-    //         for(int j=0; j < tile_SIZE; j++){
-    //             printf("%f\t", s_a[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    // }
-    //     __syncthreads();
+
+    //shared memory
+    if((row == 0) && (col == 0)){//(0,0)(0,8)(8,8)(8,0)
+        for(int i=0; i < tile_SIZE; i++){
+            for(int j=0; j < tile_SIZE; j++){
+                printf("%f\t", s_a[i][j]);
+            }
+            printf("\n");
+        }
+        printf("%d\n", gridDim.x);
+    }
+    __syncthreads();
 
     if(threadIdx.x == 0){//여기서 softMax 처리를 해줄 것이다.블록 당 하나의 쓰레드에서 연산을 하기 위해 쓰레드 y 인덱스가 0일때 리니어하게 더해준다. 왼쪽 벽만 값이 있는 타일을 생각해라.
         M[row*gridDim.x + blockIdx.x] = s_b[threadIdx.y][0];
 
-        for(int i=1; i < tile_SIZE; i++){
+        for(int i=1; i < tile_SIZE && /*((i * tile_SIZE + threadIdx.y) < model_Dim)*/; i++){
             if(M[row*gridDim.x + blockIdx.x] < s_a[threadIdx.y][i]){//tile_Max
                 M[row*gridDim.x + blockIdx.x] = s_a[threadIdx.y][i];
             }
         }
         for(int i=0; i < blockDim.x; i++){
-            if(blockIdx.x==0 && blockIdx.y==1)
-                printf("%d : %f\n",row, s_a[threadIdx.y][i]-M[row*gridDim.x + blockIdx.x]);
             L[row*gridDim.y + blockIdx.y] += expf(s_a[threadIdx.y][i] - M[row*gridDim.x + blockIdx.x]);    //tile_sum
         }
     }  
     __syncthreads();
-    //==========================SOFTMAX(total)=========================================
+    //===============================SOFTMAX(total)=========================================
 
     if(col==0){
-        printf("%d", gridDim.x);
+        // printf("%d", gridDim.x);
         dM[row] = M[row*gridDim.x];
         dL[row] = L[row*gridDim.x];
         for(int i=1; i < gridDim.x; i++){
-            if(dM[row] >M[row*gridDim.x + i]){
+            if(dM[row] <M[row*gridDim.x + i]){
                 dM[row] = M[row*gridDim.x + i];
             }
             dL[row] += L[row * gridDim.x + i];
         }
     }
     
-    //=================================================================================
+    //=======================================================================================
 
 
 
@@ -105,11 +104,11 @@ Matrix* flashAttention(Matrix *dO, Matrix *dX, Matrix *wQ, Matrix *wK, Matrix *w
     //M과 L 을 위한 공간만들기 하트 뿅뿅 M[num_token][number_of_tile]
     float *M, *L;
     cudaSetDevice(dX->device_type-1);
-    cudaMalloc(&M, sizeof(float) * num_Token * (V->row + tile_SIZE - 1) / tile_SIZE);
-    cudaMalloc(&L, sizeof(float) * num_Token * (V->row + tile_SIZE - 1) / tile_SIZE);
+    cudaMalloc(&M, sizeof(float) * num_Token * ((V->row + tile_SIZE - 1) / tile_SIZE));
+    cudaMalloc(&L, sizeof(float) * num_Token * ((V->row + tile_SIZE - 1) / tile_SIZE));
 
-    dim3 blockSize(tile_SIZE, tile_SIZE);
     dim3 gridSize((V->row + tile_SIZE - 1) / tile_SIZE, (V->row + tile_SIZE - 1) / tile_SIZE);//N x N
+    dim3 blockSize(tile_SIZE, tile_SIZE);
     flashAttention_<<<gridSize, blockSize>>>(dO->M, Q->M, K->M, V->M, M, L, dM->M, dL->M, num_Token, model_Dim);
 
 
@@ -128,7 +127,7 @@ Matrix* flashAttention(Matrix *dO, Matrix *dX, Matrix *wQ, Matrix *wK, Matrix *w
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
         float dm = i;
-        mat->M[i] = dm;
+        mat->M[i] = 0.01 * dm;
     }
     return mat;
 }
