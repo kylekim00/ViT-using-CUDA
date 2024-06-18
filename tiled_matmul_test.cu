@@ -17,7 +17,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
-        float dm = i;
+        float dm = 0.1 *i*i;
         mat->M[i] = dm;
     }
     return mat;
@@ -36,16 +36,20 @@ int main(){
     //     A = moveMatrix(A, 0);
     // }
 
+
     Matrix *A = makeMatrix(5, 7, 0);
     dummyMatrix(A);
     Matrix *B = copyMatrix(makeMatrix(5, 7, 1), A);
-    Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
-    A = copyMatrix(A, C);
+    B = softMax_Rowwise_inline(B, B);
+    copyMatrix(A, B);
     printMatrix(A);
+    // Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
+    // A = copyMatrix(A, C);
+    // printMatrix(A);
 
-    printMatrix(copyMatrix(makeMatrix(B->col, B->row, 0) , transposeMatrix(makeMatrix(B->col, B->row, 1), B)));  //이렇게 할 경우 conflict 발생 가능 이거 생각해야함. 
-    cudaCheckError(cudaGetLastError());
-    cudaCheckError(cudaDeviceSynchronize());
+    // printMatrix(copyMatrix(makeMatrix(B->col, B->row, 0) , transposeMatrix(makeMatrix(B->col, B->row, 1), B)));  //이렇게 할 경우 conflict 발생 가능 이거 생각해야함. 
+    // cudaCheckError(cudaGetLastError());
+    // cudaCheckError(cudaDeviceSynchronize());
 }
 
 //쿠다를 해제한다고 해서 할당된 메모리가 그냥 의미없이 사라지는 것이 아니다. 마치 휴지통에 지운다고 해서

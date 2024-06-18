@@ -9,6 +9,9 @@
 //     int col;
 // }Matrix;
 #define tile_SIZE 8
+
+
+
 __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, float *M, float * L, float *dM, float *dL, int num_Token, int model_Dim){
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -44,7 +47,7 @@ __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, flo
 
     //==============================SOFTMAX(ROWMAX)====================================
 
-    //shared memory
+    //shared memory lookup
     if((row == 0) && (col == 0)){//(0,0)(0,8)(8,8)(8,0)
         for(int i=0; i < tile_SIZE; i++){
             for(int j=0; j < tile_SIZE; j++){
@@ -56,10 +59,12 @@ __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, flo
     }
     __syncthreads();
 
+
+
     if(threadIdx.x == 0){//여기서 softMax 처리를 해줄 것이다.블록 당 하나의 쓰레드에서 연산을 하기 위해 쓰레드 y 인덱스가 0일때 리니어하게 더해준다. 왼쪽 벽만 값이 있는 타일을 생각해라.
         M[row*gridDim.x + blockIdx.x] = s_b[threadIdx.y][0];
 
-        for(int i=1; i < tile_SIZE && /*((i * tile_SIZE + threadIdx.y) < model_Dim)*/; i++){
+        for(int i=1; i < tile_SIZE /*&& ((i * tile_SIZE + threadIdx.y) < model_Dim)*/; i++){
             if(M[row*gridDim.x + blockIdx.x] < s_a[threadIdx.y][i]){//tile_Max
                 M[row*gridDim.x + blockIdx.x] = s_a[threadIdx.y][i];
             }
@@ -85,8 +90,27 @@ __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, flo
     
     //=======================================================================================
 
+}
+Matrix* flashAttention_Naive(Matrix *dO, Matrix *dX, Matrix *wQ, Matrix *wK, Matrix *wV){
+    //if()
+    int num_Token = dX->row;
+    int model_Dim = wQ->col;
+    // int X_dim = dX->col;
 
+    //QKV 계산
+    Matrix *Q = matmul_inline(makeMatrix(dX->row, wQ->col, dX->device_type), dX, wQ);
+    Matrix *K = matmul_inline(makeMatrix(dX->row, wQ->col, dX->device_type), dX, wK);
+    Matrix *V = matmul_inline(makeMatrix(dX->row, wQ->col, dX->device_type), dX, wV);
+    Matrix *S = matmul_inline(makeMatrix(num_Token, num_Token, dX->device_type), Q, transposeMatrix_self(K));
 
+    softMax_Rowwise_inline(S, S);
+    matmul_inline(dO, S, V);
+    freeMatrix(S);
+    freeMatrix(Q);
+    freeMatrix(K);
+    freeMatrix(V);
+
+    return dO;
 }
 
 Matrix* flashAttention(Matrix *dO, Matrix *dX, Matrix *wQ, Matrix *wK, Matrix *wV, Matrix *dM, Matrix *dL){
@@ -145,19 +169,17 @@ int main(){
     Matrix *dwV = copyMatrix(makeMatrixbyShape(wV, 1), wV);
     Matrix *dX = copyMatrix(makeMatrixbyShape(X, 1), X);
 
-
     Matrix *dM = makeMatrix(1, num_Token, 1);
     Matrix *dL = makeMatrix(1, num_Token, 1);
 
+    Matrix *dO = flashAttention_Naive(makeMatrix(num_Token, model_dim, 1), dX, dwQ, dwK, dwV);
 
-
-    Matrix *dO = flashAttention(makeMatrix(num_Token, model_dim, 1), dX, dwQ, dwK, dwV, dM, dL);
-
-
-    printMatrix(copyMatrix(makeMatrixbyShape(dM, 0), dM));
-    printMatrix(copyMatrix(makeMatrixbyShape(dL, 0), dL));
+    printMatrix(copyMatrix(makeMatrixbyShape(dO, 0), dO));
+    // printMatrix(copyMatrix(makeMatrixbyShape(dM, 0), dM));
+    // printMatrix(copyMatrix(makeMatrixbyShape(dL, 0), dL));
 
 
     // flashAttention(makeMatrix(num_Token, model_dim));
     // Matrix *Q = matmul_inline(makeMatrix(wQ->row, X->col, 1), wQ, transposeMatrix_self(dX));
+
 }
