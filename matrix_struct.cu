@@ -19,9 +19,11 @@ Matrix* makeMatrix(int row, int col, int device_type){
     mat->col = col;
     return mat;
 }
+
 Matrix* makeMatrixbyShape(Matrix* M, int device_type){
     return makeMatrix(M->row, M->col, device_type);
 }
+
 void freeMatrix(Matrix *mat) {
     if (mat == NULL) {
         fprintf(stderr, "Attempted to free a NULL matrix pointer\n");
