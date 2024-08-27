@@ -41,7 +41,9 @@ int main(){
     dummyMatrix(A);
     Matrix *B = copyMatrix(makeMatrix(5, 7, 1), A);
     B = softMax_Rowwise_inline(B, B);
-    copyMatrix(A, B);
+    Matrix *C = makeMatrix(5, 7, 1);
+    copyMatrix(C, B);
+    copyMatrix(A, C);
     printMatrix(A);
     // Matrix *C = copyMatrix(makeMatrix(5, 7, 2), B);
     // A = copyMatrix(A, C);
