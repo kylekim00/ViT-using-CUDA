@@ -11,6 +11,7 @@
 #define tile_SIZE 8
 
 
+
 Matrix* convtoMatMul(Matrix *M, int input_size, int kernal_size, int stride, int out_channel){
     int output_size = (input_size - kernal_size)/stride + 1;
 
@@ -31,6 +32,8 @@ Matrix* convtoMatMul(Matrix *M, int input_size, int kernal_size, int stride, int
     }
     return convM;
 }
+
+
 Matrix* dummyMatrix(Matrix *mat){
     for(int i=0; i < mat->row * mat-> col; i++){
         float dm = i;
