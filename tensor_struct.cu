@@ -13,7 +13,12 @@ typedef struct Tensor{
 }Tensor;
 
 Tensor *makeTensor(int *dim, int *stride,int num_dim, int device_type){
-    
+    Tensor* ten = (Tensor*)malloc(sizeof(Tensor));
+    if(!device_type){
+        ten->T = (float*)malloc(row * col *sizeof(float));
+    }else{
+        cudaSetDevice(device_type-1);
+    }
 }
 
 
