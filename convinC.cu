@@ -46,6 +46,5 @@ int main(){
     Matrix *A = makeMatrix(16, 16, 0);
     dummyMatrix(A);
     printMatrix(convtoMatMul(A, input_size,kernal_size, stride, out_channel));
-    printf("\nmin:%lf", -(__DBL_MAX__));
     
 }
