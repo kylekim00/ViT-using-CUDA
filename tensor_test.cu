@@ -11,21 +11,21 @@ Tensor* dummyTensor(Tensor *ten){
     return ten;
 }
 int main(){
-    int dim[] = {2,3, 32, 32};
-    int dim2[] = {2, 3, 32, 4};
+    int dim[] = {2, 3, 4, 5};
+    int dim2[] = {3, 5, 4, 2};
     Tensor *A = makeTensor(dim, sizeof(dim)/sizeof(int), 0);
-    Tensor *B = makeTensor(dim2, sizeof(dim2)/sizeof(int), 0);
-
-    Tensor *dA = makeTensor(dim, sizeof(dim)/sizeof(int), 1);
-    Tensor *dB = makeTensor(dim2, sizeof(dim2)/sizeof(int), 1);
-
-    Tensor *dC = makeTensor(dim2, sizeof(dim2)/sizeof(int), 1);
+    Tensor *At = makeTensor(dim2, sizeof(dim)/sizeof(int), 0);
     A = dummyTensor(A);
-    B = dummyTensor(B);
-    dA = copyTensor(dA, A);
-    dB = copyTensor(dB, B);
-    matmul(dC, dA, dB);
-    B = copyTensor(B, dC);
+    
+    int reshape[] = {1, 3, 2, 0};
+    reshapeTensor(At, A, reshape);
+    
+    printTensor(At);
+    // B = dummyTensor(B);
+    // dA = copyTensor(dA, A);
+    // dB = copyTensor(dB, B);
+    // matmul(dC, dA, dB);
+    // B = copyTensor(B, dC);
     // A = copyTensor(A, B);
     // for(int i=0; i < sizeof(dim)/sizeof(int); i++){
     //     printf("%d " , A->dim[i]);
@@ -34,8 +34,12 @@ int main(){
     // for(int i=0; i < sizeof(dim)/sizeof(int); i++){
     //     printf("%d " , A->stride[i]);
     // }
-    printf("\n%d\n", B->stride[0] * B->dim[0]);
+    // printf("\n%d\n", B->stride[0] * B->dim[0]);
     // printf("%d\n", sizeof(A->T)/sizeof(float));
-    printTensor(B);
+    // printTensor(B);
     freeTensor(A);
+    freeTensor(At);
+    // freeTensor(dA);
+    // freeTensor(dB);
+    // freeTensor(dC);
 }

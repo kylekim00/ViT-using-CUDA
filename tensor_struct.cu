@@ -26,7 +26,24 @@ Tensor *makeTensor(int *dim, int num_dim, int device_type){
     }
     return ten;
 }
-
+Tensor* makeTensorbyShape(Tensor* src, int device_type){
+    Tensor* ten = (Tensor*)malloc(sizeof(Tensor));
+    ten->dim = (int*)malloc(sizeof(int) * src->num_dim);
+    ten->stride = (int*)malloc(sizeof(int) * src->num_dim);
+    ten->num_dim = src->num_dim;
+    ten->device_type = device_type;
+    for(int i=0; i < src->num_dim; i++){
+        ten->dim[i] = src->dim[i];
+        ten->stride[i] = src->stride[i];
+    }
+    if(!device_type){
+        ten->T = (float*)malloc(ten->dim[0] * ten->stride[0] * sizeof(float));
+    }else{
+        cudaSetDevice(device_type-1);
+        cudaMalloc(&ten->T, ten->dim[0] * ten->stride[0] * sizeof(float));
+    }
+    return ten;
+}
 void freeTensor(Tensor *ten){
     if(ten==NULL){
         printf("NO TENSOR IN POINTER.\n");
@@ -47,7 +64,21 @@ void freeTensor(Tensor *ten){
     free(ten->stride);
     free(ten);
 }
-
+void infoTensor(Tensor *ten){
+    printf("\n=========Tensor===========\n");
+    printf("DIMENTION : [");
+    for(int i=0; i < ten->num_dim-1; i++){
+        printf("%d ", ten->dim[i]);
+    }
+    printf("%d]\n", ten->dim[ten->num_dim - 1]);
+    printf("DEVICE TYPE : ");
+    if(ten->device_type){
+        printf("GPU %d", ten->device_type);
+    }else{
+        printf("CPU");
+    }
+    printf("\n==========================\n");
+}
 void printTensor(Tensor *ten){
     if(ten->device_type){
         printf("printTensor : GPU mem can not be printed\n");
@@ -89,7 +120,6 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
             return NULL;
         }
     }
-
     if(!dst->device_type && !src->device_type){ //CPU to CPU
         for(int i=0; i < dst->dim[0]*dst->stride[0]; i++)
             dst->T[i] = src->T[i];
@@ -107,6 +137,122 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
     }
     return dst;
 }
+
+__global__ void reshape_(float* dst, float* src){
+    
+}
+
+
+Tensor* reshapeTensor(Tensor* dst, Tensor* src, int* reshape){
+
+    if(src->device_type != dst->device_type){
+        printf("DEVICE NOT MATCH.\n");
+        return NULL;
+    }
+    if(src->num_dim != dst->num_dim){
+        printf("DEVICE NUM_DIM DOES NOT MATCH.\n");
+        return NULL;
+    }
+
+    if(src->dim[0] * src->stride[0] != dst->dim[0] * dst->stride[0]){
+        printf("DEVICE NUM OF ELEMENT DOES NOT MATCH.\n");
+        return NULL;
+    }
+
+    //===================Setting for reshape==========================
+    int* tmp_reshape = (int*)malloc(sizeof(int) * src->num_dim);
+    for(int i=0; i < src->num_dim; i++){
+        printf("%d ", reshape[i]);
+    }
+    printf("\n");
+    for(int i=0; i < src->num_dim; i++){
+        for(int j=0; j < src->num_dim; j++){
+            if(reshape[j] == i && dst->dim[j] == src->dim[i]){//여기서 reshape이랑 맞지 않는 것도 걸러냄.
+                tmp_reshape[i] = j;
+                goto NEXT_RESHAPETENSOR_TMP_RESHAPE;//나도 쓰기 싫었다.
+            }
+        }
+        printf("NOT AN APPROPRIATE RESHAPE.\n");
+        return NULL;
+        NEXT_RESHAPETENSOR_TMP_RESHAPE: ;
+    }
+    //================================================================
+
+    for(int i=0; i < src->num_dim; i++){
+        printf("%d ", tmp_reshape[i]);
+    }
+
+    printf("\n");
+    if(src->device_type){
+        
+    }else{//CPU
+        int newInx, tmp;
+        for(int inx =0; inx < src->dim[0] * src->stride[0]; inx++){
+            newInx = 0;
+            tmp = inx;
+            for(int i=0; i < src->num_dim; i++){
+                newInx += tmp / src->stride[i] * dst->stride[tmp_reshape[i]];
+                tmp = tmp % src->stride[i];
+            }
+            dst->T[newInx] = src->T[inx];
+        }
+    }
+
+    free(tmp_reshape);
+    return dst;
+}
+
+
+
+// Tensor* reshapeTensorinline(Tensor* ten, int* reshape){
+//     //===================Setting for reshape==========================
+//     int* tmp_reshape = (int*)malloc(sizeof(int) * ten->num_dim);
+//     for(int i=0; i < ten->num_dim; i++){
+//         printf("%d ", reshape[i]);
+//     }
+//     printf("\n");
+//     for(int i=0; i < ten->num_dim; i++){
+//         for(int j=0; j < ten->num_dim; j++){
+//             if(reshape[j] == i){
+//                 tmp_reshape[i] = j;
+//                 goto NEXT_RESHAPETENSOR_TMP_RESHAPE;//나도 쓰기 싫었다.
+//             }
+//         }
+//         printf("NOT AN APPROPRIATE RESHAPE.\n");
+//         return NULL;
+//         NEXT_RESHAPETENSOR_TMP_RESHAPE: ;
+//     }
+//     //===================================================
+
+
+//     float* tmp;
+//     for(int i=0; i < ten->num_dim; i++){
+//         printf("%d ", tmp_reshape[i]);
+//     }
+//     printf("\n");
+//     if(ten->device_type){
+//         cudaSetDevice(ten->device_type-1);
+//         cudaMalloc(&tmp, sizeof(float) * ten->dim[0] * ten->stride[0]);
+//         <<<>>>reshape_(tmp, ten->T);
+
+//     }else{//CPU
+//         tmp_T = (float*)malloc(sizeof(float) * ten->dim[0] * ten->stride[0]);
+//         int new_inx, tmp, tmp_left;
+//         for(int inx=0; inx < ten->dim[0] * ten->stride[0]; inx++){
+//             new_inx = 0;
+//             tmp = inx;
+//             for(int i=0; i < ten->num_dim; i++){
+//                 tmp_left = tmp / ten->stride[i];
+//                 new_inx += tmp_left * ;
+                
+//             }
+//         }
+//         free(tmp);
+//     }
+
+//     free(tmp_reshape);
+//     return ten;
+// }
 
 __global__ void tiledMM(float *A, float *B, float *C, float *bias, int M, int N, int K) {
     //blockDim.z, blockIdx.z
