@@ -98,6 +98,7 @@ __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, flo
 
         //load K to shared => 이건 K가 k_iteration마다 한 tile column
         for(int row_K = 0; row_K < (MODEL_DIM + tile_SIZE - 1) / tile_SIZE; row_K++) {
+            
             int global_row = row_K * tile_SIZE + threadIdx.y;
 
             if (col < num_Token && global_row < MODEL_DIM) {

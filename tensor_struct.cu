@@ -120,7 +120,9 @@ void printTensor(Tensor *ten){
             printf("\n");
         }
     }
-}   
+} 
+
+
 
 Tensor* copyTensor(Tensor *dst, Tensor *src){
     if(dst->num_dim != src->num_dim){
@@ -374,13 +376,13 @@ __global__ void tiledMM(float *A, float *B, float *C, float *bias, int M, int N,
 //2. 작은 num_dim만큼의 차원들은 맞는지 확인
 //3. 차원이 맞다면 flatten하고 (큰 dim 남는차원) x(작은 dim 차원) x(row)x(col) 꼴로 matmul을 해서 되게한다.
 
-void matmul_matwise_(float *dA, float *dB, float *dC, float *dBias, int M, int N, int K, int numofMat, int big_dim_stride, int big_A_True) {
+void matmul_(float *dA, float *dB, float *dC, float *dBias, int M, int N, int K, int numofMat, int big_dim_stride, int big_A_True) {
     dim3 dimGrid((N + tile_SIZE - 1) / tile_SIZE, (M + tile_SIZE - 1) / tile_SIZE, numofMat); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
     dim3 dimBlock(tile_SIZE, tile_SIZE);
     tiledMM<<<dimGrid, dimBlock>>>(dA, dB, dC, dBias, M, N, K, big_dim_stride, big_A_True);
 }
 
-Tensor* matmul_matwise(Tensor*dC, Tensor *dA, Tensor *dB){
+Tensor* matmul(Tensor*dC, Tensor *dA, Tensor *dB){
     if (dA->device_type != dB->device_type) {
         printf("two source Matrix is on different device. dA : %d, dB: %d\n", dA->device_type, dB->device_type);
         return NULL;
@@ -433,7 +435,7 @@ Tensor* matmul_matwise(Tensor*dC, Tensor *dA, Tensor *dB){
         return NULL;
     }
     int big_dim_stride = bigTensor->stride[dim_contrast-1] / bigTensor->stride[bigTensor->num_dim-3];
-    matmul_matwise_(dA->T, dB->T, dC->T, NULL, dA->dim[dA->num_dim - 2], dB->dim[dB->num_dim - 1], dA->dim[dA->num_dim - 1], bigTensor->dim[0] * bigTensor->stride[0] / bigTensor->stride[bigTensor->num_dim-3], big_dim_stride, big_A_True);
+    matmul_(dA->T, dB->T, dC->T, NULL, dA->dim[dA->num_dim - 2], dB->dim[dB->num_dim - 1], dA->dim[dA->num_dim - 1], bigTensor->dim[0] * bigTensor->stride[0] / bigTensor->stride[bigTensor->num_dim-3], big_dim_stride, big_A_True);
     return dC;
 
 }

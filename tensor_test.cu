@@ -4,35 +4,44 @@
 
 Tensor* dummyTensor(Tensor *ten){
     for(int i=0; i < ten->dim[0] * ten->stride[0]; i++){
-        float dm = i;
+        float dm = 2;
         ten->T[i] = dm;
     }
     return ten;
 }
+void printfirstMatinTensor(Tensor *ten){
+    if(ten->device_type){
+        printf("printTensor : GPU mem can not be printed\n");
+        return;
+    }
+    //==============if ten->num_dim < 3========================
+    //=================else====================================
+    printf("=\n");
+    int numofMat = ten->dim[0] * ten->stride[0] / ten->stride[ten->num_dim-3];
+    // for(int n=0; n < ten->num_dim - 2; n++){
+    //     numofMat *= dim[n];
+    // }
+    for(int mat_inx = 0; mat_inx < 1; mat_inx++){
+        printf("[ ");
+        int tmp = mat_inx;
+        for(int n=0; n < ten->num_dim - 3; n++){
+            printf("%d, ", tmp / (ten->stride[n]/ten->stride[ten->num_dim-3]));
+            tmp %= (ten->stride[n]/ten->stride[ten->num_dim-3]);
+        }
+        printf("%d, ", tmp);
+        printf("-, -]\n");
+        for(int i = mat_inx * ten->stride[ten->num_dim-3]; i < mat_inx * ten->stride[ten->num_dim-3] + ten->stride[ten->num_dim-3]; i+=ten->stride[ten->num_dim-2]){
+            for(int j= i; j < i + ten->stride[ten->num_dim - 2];j++){
+                printf("%.02f\t", ten->T[j]);
+            }
+            printf("\n");
+        }
+    }
+}   
 int main(){
-    int dim[] = {2, 3, 4, 5};
-    int dim2[] = {3, 5, 4};
+    int dim[] = {4, 1, 196, 768};
+    int dim2[] = {1, 768, 768};
     Tensor *A = makeTensor(dim, sizeof(dim)/sizeof(int), 0);
     Tensor *At = makeTensor(dim2, sizeof(dim2)/sizeof(int), 0);
-    A = dummyTensor(A);
-    At = dummyTensor(At);
-    // int reshape[] = {0, 1, 3, 2};
-    // reshapeTensor(At, A, reshape);//이거 근데 copy랑 다를게 없지 않나
-    printTensor(A);
-    printTensor(At);
-    Tensor *dA = copyTensor(makeTensorbyShape(A, 1), A);
-    Tensor* dAt = makeTensorbyShape(At, 1);
-    copyTensor(dAt, At);
-    int dim3[] = {2, 3, 4, 4};
-    Tensor* dC = makeTensor(dim3, sizeof(dim3)/sizeof(int), 1);
-    Tensor* C = makeTensorbyShape(dC, 0);
 
-    matmul_matwise(dC, dA, dAt);
-
-    copyTensor(C, dC);
-    printTensor(C);
-
-    freeTensor(A);
-    freeTensor(At);
-    
 }

@@ -36,7 +36,6 @@ void infoTensor(Tensor *ten);
 
 
 Tensor* matmul(Tensor* dC, Tensor *dA, Tensor* dB);
-Tensor* matmul_matwise(Tensor* dC, Tensor *dA, Tensor* dB);
 #endif // TENSOR_H
 //주의할 점. 
 //어차피 할당된 곳을 계속 쓰게 되어있다. 굳이 free할 일이 거의 없으므로 웬만하면 inline 또는 dst, src 꼴로 만들어 주는 것이 제일 좋다.
