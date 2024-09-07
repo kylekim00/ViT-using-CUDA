@@ -7,12 +7,14 @@
 #define tile_SIZE 8
 
 typedef struct Tensor{
-    float *T;
+    float *T;                               //이건 배열이 아니라 시작주소이다.
     int *dim;
     int *stride;
     int *d_dim_stride;
     int num_dim;
+    int sizeTensor;
     char device_type;
+
 }Tensor;
 
 

@@ -3,9 +3,13 @@
 #include<cuda_runtime.h>
 #include "tensor_struct_2.h"
 //나중에는 나눠서 각각의 gpu 안에 넣어야하기 때문에 생각을 해보면 인덱스 값에 따라 값을 copy 해주는 것도 있으면 좋을 것 같다.
+//기존 텐서와 다른점. 
+
+//1. dim과 stride가 다를 때를 고려한다. 아울러 총 크기를 그냥 저장해버린다. 이는 makelightcopysubTensor() 함수를 만들기 위함이다. 마치 커서의 드래그와 같은 역할을 해줄 것이다.
+//2. num_dim이 1, 2 일때도 작동이 되도록한다.
+//3. device 위에 올라가 있을 경우 dim과 stride도 같이 device에 올려준다. [5, 1, 3, 3, 4] X [4, 1, 4, 2] 와 같은 복잡한 텐서도 행렬곱이 가능하게 하기 위함이다. 
 
 Tensor *makeTensor(int *dim, int num_dim, int device_type){
-
     if(!dim){                       //if There is no dim inside
         return NULL;
     }
@@ -19,7 +23,7 @@ Tensor *makeTensor(int *dim, int num_dim, int device_type){
         return NULL;
     }
 
-    int tensorSize;                 //check the size of whole Tensor
+    int sizeTensor;                 //check the size of whole Tensor
 
     Tensor* ten = (Tensor*)malloc(sizeof(Tensor));      //give tensor a space for host
     ten->dim = (int*)malloc(2 * num_dim * sizeof(int)); //give dim and stride a spcae for host
@@ -28,33 +32,21 @@ Tensor *makeTensor(int *dim, int num_dim, int device_type){
     ten->num_dim = num_dim;
     ten->device_type = device_type;
 
-    if(num_dim == 1){                //this Tensor is a vector
-        ten->dim[0] = dim[0];
-        ten->stride[0] = 1;
-        tensorSize = dim[0];
-    }
-    // if(num_dim == 2){               //this Tensor is an Array
-    //     ten->dim[0] = dim[0];
-    //     ten->dim[1] = dim[1];
-    //     ten->stride[1] = 1;
-    //     ten->stride[0] = ten->dim[1];
-    //     tensorSize = ten->stride[1] * ten->dim[1];
-    // }
-    else{                           //this Tnesor is a Tensor.
-        tensorSize = 1;
-        for(int i= num_dim - 1; i >= 0; i--){
-            ten->dim[i] = dim[i];
-            ten->stride[i] = tensorSize;
-            tensorSize *= dim[i];
-        }
+    sizeTensor = 1;
+    for(int i= num_dim - 1; i >= 0; i--){
+        ten->dim[i] = dim[i];
+        ten->stride[i] = sizeTensor;
+        sizeTensor *= dim[i];
     }
 
+    ten->sizeTensor = sizeTensor;
+
     if(!device_type){
-        ten->T = (float*)malloc(tensorSize * sizeof(float));
+        ten->T = (float*)malloc(sizeTensor * sizeof(float));
         ten->d_dim_stride = NULL;
     }else{
         cudaSetDevice(device_type-1);
-        cudaMalloc(&ten->T, tensorSize * sizeof(float));
+        cudaMalloc(&ten->T, sizeTensor * sizeof(float));
         cudaMalloc(&ten->d_dim_stride, 2 * num_dim * sizeof(int));
         cudaMemcpy(ten->d_dim_stride, ten->dim, 2 * num_dim * sizeof(int), cudaMemcpyHostToDevice);
     }
@@ -62,25 +54,16 @@ Tensor *makeTensor(int *dim, int num_dim, int device_type){
 }
 
 
-
-
-
-
 Tensor* makeTensorbyShape(Tensor* src, int device_type){
     if(!src){
-        printf("SRC is vacant.\n");
+        printf("SouRCe is vacant.\n");
         return NULL;
     }
     return makeTensor(src->dim, src->num_dim, device_type);
 }
 
 
-// float* makeTensorwithNewSpace(Tensor* ten){
-//     float* tmp = ten->T;
-//     ten->T = 
-// }
-
-
+//================================================FREEEEEEEEEEEE===============================================================
 void freeTensor(Tensor *ten){
     if(ten==NULL){
         printf("NO TENSOR IN POINTER.\n");
@@ -101,9 +84,11 @@ void freeTensor(Tensor *ten){
         }
     }
 
-    free(ten->dim);         //didn't malloc ten->stride at the first place :P
+    free(ten->dim);         //didn't malloc ten->stride from the first place :P
     free(ten);
 }
+
+
 void infoTensor(Tensor *ten){
     printf("\n=========Tensor===========\n");
     printf("DIMENTION : [");
@@ -111,6 +96,11 @@ void infoTensor(Tensor *ten){
         printf("%d ", ten->dim[i]);
     }
     printf("%d]\n", ten->dim[ten->num_dim - 1]);
+    printf("STRIDE    : [");
+    for(int i=0; i < ten->num_dim-1; i++){
+        printf("%d ", ten->stride[i]);
+    }
+    printf("%d]\n", ten->stride[ten->num_dim - 1]);
     printf("DEVICE TYPE : ");
     if(ten->device_type){
         printf("GPU %d", ten->device_type);
@@ -128,7 +118,7 @@ void printTensor(Tensor *ten){
     //==============if ten->num_dim < 3========================
     if(ten->num_dim == 1){
         printf("[ %d ]\n", ten->dim[0]);
-        for(int i=0; i < ten->dim[0]; i++){
+        for(int i=0; i < ten->dim[0]; i+=ten->stride[0]){
             printf("%.02f\t", ten->T[i]);
         }
         printf("\n");
@@ -136,9 +126,9 @@ void printTensor(Tensor *ten){
     }
     if(ten->num_dim == 2){
         printf("[ %d %d ]\n", ten->dim[0], ten->dim[1]);
-        for(int i=0; i < ten->dim[0]; i++){
-            for(int j=0; j < ten->dim[1]; j++){
-                printf("%.02f\t", ten->T[ten->stride[0]* i + j]);
+        for(int i=0; i < ten->dim[0]*ten->stride[0]; i+=ten->stride[0]){
+            for(int j=0; j < ten->dim[1]*ten->stride[1]; j+=ten->stride[1]){
+                printf("%.02f\t", ten->T[i + j]);
                 // printf("%d\t", ten->stride[0]* i + j);
             }
             printf("\n");
@@ -148,29 +138,38 @@ void printTensor(Tensor *ten){
     }
     //=================else====================================
     printf("=\n");
-    int numofMat = ten->dim[0] * ten->stride[0] / ten->stride[ten->num_dim-3];
-    // for(int n=0; n < ten->num_dim - 2; n++){
-    //     numofMat *= dim[n];
-    // }
-    for(int mat_inx = 0; mat_inx < numofMat; mat_inx++){
+
+    int* tmp_Inx = (int*)malloc(sizeof(int) * (ten->num_dim - 2));
+    for(int i=0; i < ten->num_dim - 2; i++){
+        tmp_Inx[i] = 0;
+    }
+    int inx;
+    while(tmp_Inx[0] < ten->dim[0]){
+        inx = 0;
         printf("[ ");
-        int tmp = mat_inx;
-        for(int n=0; n < ten->num_dim - 3; n++){
-            printf("%d, ", tmp / (ten->stride[n]/ten->stride[ten->num_dim-3]));
-            tmp %= (ten->stride[n]/ten->stride[ten->num_dim-3]);
+        for(int i=0; i < ten->num_dim-2;i++){
+            printf("%d ", tmp_Inx[i]);
+            inx += tmp_Inx[i] * ten->stride[i];
         }
-        printf("%d, ", tmp);
-        printf("-, -]\n");
-        for(int i = mat_inx * ten->stride[ten->num_dim-3]; i < mat_inx * ten->stride[ten->num_dim-3] + ten->stride[ten->num_dim-3]; i+=ten->stride[ten->num_dim-2]){
-            for(int j= i; j < i + ten->stride[ten->num_dim - 2];j++){
-                printf("%.02f\t", ten->T[j]);
+        printf("- - ]\n");
+
+        for(int i=0; i < ten->dim[ten->num_dim-2]*ten->stride[ten->num_dim-2]; i+=ten->stride[ten->num_dim-2]){
+            for(int j=0; j < ten->dim[ten->num_dim-1]*ten->stride[ten->num_dim-1]; j+=ten->stride[ten->num_dim-1]){
+                printf("%.02f\t", ten->T[inx + i + j]);
+                // printf("%d\t", ten->stride[0]* i + j);
             }
             printf("\n");
         }
+
+        tmp_Inx[ten->num_dim - 3]++;
+        for(int i = ten->num_dim - 3; i > 0; i--){
+            if(tmp_Inx[i] >= ten->dim[i]){
+                tmp_Inx[i-1]++;
+                tmp_Inx[i] = 0;
+            }
+        }
     }
-} 
-
-
+}
 
 Tensor* copyTensor(Tensor *dst, Tensor *src){
     if(dst->num_dim != src->num_dim){
@@ -200,6 +199,10 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
     }
     return dst;
 }
+
+Tensor* makelightcopysubTensor(Tensor* src){
+}
+
 
 __global__ void reshape_(float* dst, float* src){
     
@@ -252,7 +255,7 @@ Tensor* reshapeTensor(Tensor* dst, Tensor* src, int* reshape){
         
     }else{//CPU
         int newInx, tmp;
-        for(int inx =0; inx < src->dim[0] * src->stride[0]; inx++){
+        for(int inx =0; inx < src->sizeTensor; inx++){
             newInx = 0;
             tmp = inx;
             for(int i=0; i < src->num_dim; i++){

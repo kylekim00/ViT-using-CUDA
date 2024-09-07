@@ -10,11 +10,12 @@ Tensor* dummyTensor(Tensor *ten){
 }
 
 int main(){
-    int dim[] = {3, 2};
-    Tensor* A = makeTensor(dim, 2, 0);
+    int dim[] = {4, 3, 3, 2};
+    Tensor* A = makeTensor(dim, 4, 0);
     // A->T[1] = 1;
     // A->T[2] = 2;
     A = dummyTensor(A);
+    
     for(int i=0; i < A->num_dim; i++){
         printf("%d\t", A->stride[i]);
     }
