@@ -68,6 +68,66 @@ Tensor* makeTensorbyShape(Tensor* src, int device_type){
 }
 
 
+Tensor* makeSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
+    if(src->isSub){
+        printf("Cant light copy subTensor\n");
+        return NULL;
+    }
+    if(src->num_dim < num_dim){
+        printf("SouRCe num_dim not that big\n");
+        return NULL;
+    }
+
+    int cont = src->num_dim - num_dim;
+    float* sp = src->T;
+
+
+    for(int i=0; i < src->num_dim; i++){                            //This is where you set the starting point
+        if(src->dim[i] <= start_point[i]){
+            printf("starting point invalid\n");
+            return NULL;
+        }
+        sp += start_point[i] * src->stride[i];
+    }
+
+    for(int i=0; i < num_dim; i++){                                 //This is where tou check the size of the dim 
+        if(src->dim[i + cont] < start_point[i+cont] + dim[i]){
+            printf("SouRCe not that big.\n");
+            return NULL;
+        }
+    }
+
+    Tensor* subTensor = (Tensor*)malloc(sizeof(Tensor));            //Tensor malloc
+
+    subTensor->isSub = 1;
+    subTensor->device_type = src->device_type;                      //device_type same as src
+    subTensor->num_dim = num_dim;                                   //num_dim
+
+    subTensor->dim = (int*)malloc(2 * sizeof(int)* num_dim);        //dim stride malloc
+    subTensor->stride = subTensor->dim + num_dim;
+
+    subTensor->sizeTensor = 1;
+    for(int i=0; i < num_dim; i++){                             
+        subTensor->dim[i] = dim[i];
+        subTensor-> stride[i] = src->stride[i+cont];            //copy Stride
+        subTensor->sizeTensor *= dim[i];
+    }
+
+    subTensor->T = sp;
+
+    if(src->device_type){
+        cudaSetDevice(src->device_type-1);
+        cudaMalloc(&subTensor->d_dim_stride, 2 * num_dim * sizeof(int));
+        cudaMemcpy(subTensor->d_dim_stride, subTensor->dim, 2 * num_dim * sizeof(int), cudaMemcpyHostToDevice);
+    }else{
+        subTensor->d_dim_stride = NULL;
+    }
+
+    return subTensor;
+}
+
+
+
 //================================================FREEEEEEEEEEEE===============================================================
 
 void freeSubTensor(Tensor* subTen){
@@ -117,6 +177,7 @@ void freeTensor(Tensor *ten){
     free(ten);
 }
 
+//=================================print================================
 
 void infoTensor(Tensor *ten){
     printf("\n=========Tensor===========\n");
@@ -243,64 +304,6 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
     return dst;
 }
 
-Tensor* makeSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
-    if(src->isSub){
-        printf("Cant light copy subTensor\n");
-        return NULL;
-    }
-    if(src->num_dim < num_dim){
-        printf("SouRCe num_dim not that big\n");
-        return NULL;
-    }
-
-    int cont = src->num_dim - num_dim;
-    float* sp = src->T;
-
-
-    for(int i=0; i < src->num_dim; i++){                            //This is where you set the starting point
-        if(src->dim[i] <= start_point[i]){
-            printf("starting point invalid\n");
-            return NULL;
-        }
-        sp += start_point[i] * src->stride[i];
-    }
-
-    for(int i=0; i < num_dim; i++){                                 //This is where tou check the size of the dim 
-        if(src->dim[i + cont] < start_point[i+cont] + dim[i]){
-            printf("SouRCe not that big.\n");
-            return NULL;
-        }
-    }
-
-    Tensor* subTensor = (Tensor*)malloc(sizeof(Tensor));            //Tensor malloc
-
-    subTensor->isSub = 1;
-    subTensor->device_type = src->device_type;                      //device_type same as src
-    subTensor->num_dim = num_dim;                                   //num_dim
-
-    subTensor->dim = (int*)malloc(2 * sizeof(int)* num_dim);        //dim stride malloc
-    subTensor->stride = subTensor->dim + num_dim;
-
-    subTensor->sizeTensor = 1;
-    for(int i=0; i < num_dim; i++){                             
-        subTensor->dim[i] = dim[i];
-        subTensor-> stride[i] = src->stride[i+cont];            //copy Stride
-        subTensor->sizeTensor *= dim[i];
-    }
-
-    subTensor->T = sp;
-
-    if(src->device_type){
-        cudaSetDevice(src->device_type-1);
-        cudaMalloc(&subTensor->d_dim_stride, 2 * num_dim * sizeof(int));
-        cudaMemcpy(subTensor->d_dim_stride, subTensor->dim, 2 * num_dim * sizeof(int), cudaMemcpyHostToDevice);
-    }else{
-        subTensor->d_dim_stride = NULL;
-    }
-
-    return subTensor;
-}
-
 
 __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_dim_stride, int* reshape, int num_dim, int sizeTensor){
     src_dim_stride += num_dim;
@@ -319,7 +322,7 @@ __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_d
 }
 
 
-Tensor* reshapeTensor(Tensor* dst, Tensor* src, int* reshape){
+Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
     if(dst->isSub){
         printf("dst can't be subMatrix.\n");
     }
@@ -364,85 +367,7 @@ Tensor* reshapeTensor(Tensor* dst, Tensor* src, int* reshape){
     return dst;
 }
 
-// __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_dim_stride, int* tmp_reshape, int num_dim, int sizeTensor){
-//     src_dim_stride += num_dim;
-//     dst_dim_stride += num_dim;
-//     int inx = blockDim.x * blockIdx.x + threadIdx.x;
-//     int newInx= 0;
-//     for(int i=0; i < num_dim; i++){
-//         newInx += inx / src_dim_stride[i] * dst_dim_stride[tmp_reshape[i]];
-//         inx %= src_dim_stride[i];
-//     }
-//     inx = blockDim.x * blockIdx.x + threadIdx.x;
-//     if(inx < sizeTensor)
-//         dst[newInx] = src[inx];
-// }
 
-
-// Tensor* reshapeTensor(Tensor* dst, Tensor* src, int* reshape){
-
-//     if(src->device_type != dst->device_type){
-//         printf("DEVICE NOT MATCH.\n");
-//         return NULL;
-//     }
-//     if(src->num_dim != dst->num_dim){
-//         printf("DEVICE NUM_DIM DOES NOT MATCH.\n");
-//         return NULL;
-//     }
-
-//     if(src->dim[0] * src->stride[0] != dst->dim[0] * dst->stride[0]){
-//         printf("DEVICE NUM OF ELEMENT DOES NOT MATCH.\n");
-//         return NULL;
-//     }
-
-//     //===================Setting for reshape==========================
-//     int* tmp_reshape = (int*)malloc(sizeof(int) * src->num_dim);            //making new function that flips reshape
-
-//     for(int i=0; i < src->num_dim; i++){
-//         for(int j=0; j < src->num_dim; j++){                                //find and flip the function.
-//             if(reshape[j] == i && dst->dim[j] == src->dim[i]){              //여기서 reshape이랑 맞지 않는 것도 걸러냄.
-//                 tmp_reshape[i] = j;
-//                 goto NEXT_RESHAPETENSOR_TMP_RESHAPE;                        //나도 쓰기 싫었다.
-//             }
-//         }
-//         printf("NOT AN APPROPRIATE RESHAPE.\n");
-//         return NULL;
-//         NEXT_RESHAPETENSOR_TMP_RESHAPE: ;
-//     }
-//     //================================================================
-    
-//     // for(int i=0; i < src->num_dim; i++){
-//     //     printf("%d ", tmp_reshape[i]);
-//     // }
-
-//     if(src->device_type){//GPU
-//         cudaSetDevice(src->device_type - 1);
-//         int* d_tmp_reshape;
-//         cudaMalloc(&d_tmp_reshape, sizeof(int) * dst->num_dim);
-//         cudaMemcpy(d_tmp_reshape, tmp_reshape, sizeof(int) * dst->num_dim, cudaMemcpyHostToDevice);
-        
-//         int s_tile_SIZE = tile_SIZE * tile_SIZE;
-        
-//         reshape_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, src->T, dst->d_dim_stride, src->d_dim_stride, d_tmp_reshape, src->num_dim, dst->sizeTensor);
-        
-//         cudaFree(d_tmp_reshape);
-
-//     }else{//CPU
-//         int newInx, tmp;
-//         for(int inx =0; inx < src->sizeTensor; inx++){
-//             newInx = 0;
-//             tmp = inx;
-//             for(int i=0; i < src->num_dim; i++){
-//                 newInx += tmp / src->stride[i] * dst->stride[tmp_reshape[i]];
-//                 tmp = tmp % src->stride[i];
-//             }
-//             dst->T[newInx] = src->T[inx];
-//         }
-//     }
-
-//     free(tmp_reshape);
-//     return dst;
-// }
 // __global__ void tiledMM(float *A, float *B, float *C, float *bias, int M, int N, int K, int big_dim_stride, int big_A_True) {
 //     //blockDim.z, blockIdx.z 이게 매트릭스의 수//z thread를 늘린다고 문제가 해결되지 않는다.
 //     int matIdx_A, matIdx_B;

@@ -20,14 +20,14 @@ int main(){
     Tensor* subAt = makeTensor(dim2, 3, 0);
     
     int resh[] = {2, 1, 0};
-    reshapeTensor(subAt, subA, resh);
+    copyReshapeTensor(subAt, subA, resh);
 
     printTensor(subAt);
 
     // Tensor* dA = copyTensor(makeTensorbyShape(A, 1), A);
     // Tensor* dAt = makeTensorbyShape(At, 1);
 
-    // reshapeTensor(dAt, dA, resh);
+    // copyReshapeTensor(dAt, dA, resh);
     // copyTensor(At, dAt);
     // printTensor(At);
 
