@@ -153,8 +153,8 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
     return dst;
 }
 
-__global__ void reshape_(float* dst, float* src){
-    
+Tensor* makelightcopysubTensor(Tensor*src, int* dim, int*stride){
+
 }
 
 

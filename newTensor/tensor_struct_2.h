@@ -14,15 +14,15 @@ typedef struct Tensor{
     int num_dim;
     int sizeTensor;
     char device_type;
-
+    char isSub;
 }Tensor;
 
 
 // Function Prototypes
 Tensor *makeTensor(int *dim, int num_dim, int device_type);
 Tensor *makeTensorbyShape(Tensor* src, int device_type);
-Tensor *makeTensorbyCopy(Tensor* src,int *transpose, int device_type);
-float* makeTensorwithNewSpace(Tensor* ten);
+// Tensor *makeTensorbyCopy(Tensor* src,int *transpose, int device_type);
+Tensor *makeSubTensor(Tensor* src, int* start_point, int* dim, int num_dim);
 
 void freeTensor(Tensor *ten);
 

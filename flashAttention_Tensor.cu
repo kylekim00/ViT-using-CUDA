@@ -1,4 +1,4 @@
-#include<stdio.h>
+cd ..#include<stdio.h>
 #include<stdlib.h>
 #include<float.h>
 #include <curand.h>

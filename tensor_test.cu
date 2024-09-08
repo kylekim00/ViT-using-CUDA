@@ -43,5 +43,5 @@ int main(){
     int dim2[] = {1, 768, 768};
     Tensor *A = makeTensor(dim, sizeof(dim)/sizeof(int), 0);
     Tensor *At = makeTensor(dim2, sizeof(dim2)/sizeof(int), 0);
-
+    
 }
