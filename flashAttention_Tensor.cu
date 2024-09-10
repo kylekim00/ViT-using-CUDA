@@ -1,4 +1,4 @@
-cd ..#include<stdio.h>
+#include<stdio.h>
 #include<stdlib.h>
 #include<float.h>
 #include <curand.h>
@@ -55,7 +55,7 @@ int main(){
     int embedding_dim = 768;
     int hidden_dim = 64;
 
-    int dim[] = {batch_size, 1, num_Token, embedding_dim};
+    int input_dim[] = {batch_size, 1, num_Token, embedding_dim};
     int qkv_weight_dim[] = {1, embedding_dim, num_head * 3 * hidden_dim};
     int QKV_dim[] = {batch_size, 1, num_Token, num_head * 3 * hidden_dim};
     
@@ -66,7 +66,7 @@ int main(){
 
 
     
-    Tensor* input = makeTensor(dim, 4, 1);
+    Tensor* input = makeTensor(input_dim, 4, 1);
     Tensor* Wqkv = makeTensor(qkv_weight_dim, 3, 1);
     Tensor* QKV = makeTensor(QKV_dim, 4, 1);
 
