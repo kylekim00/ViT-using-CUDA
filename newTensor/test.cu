@@ -10,26 +10,31 @@ Tensor* dummyTensor(Tensor *ten){
 }
 
 int main(){
-    int dim[] = {5, 1, 224, 224};
+    int dim[] = {5, 4, 2, 3};
     Tensor* A = makeTensor(dim, 4, 0);
     A = dummyTensor(A);
-    int subDim[] = {4, 224, 224};
+    int trans_dim[] = {2, 3, 4, 5};
+    Tensor* At = makeTensor(trans_dim, 4, 0);
     
-    Tensor*B = makeTensor(subDim, 3, 0);
-    B = dummyTensor(B);
-    
-    Tensor* dA = copyTensor(makeTensorbyShape(A, 1), A);
-    Tensor* dB = copyTensor(makeTensorbyShape(B, 1), B);
-    infoTensor(dA);
-    infoTensor(dB);
-    int resdim[] = {5, 4, 224, 224};
-    Tensor* dC = makeTensor(resdim, 4, 1);
-    compMatMul(dC, dA, dB);
+    Tensor*dA = copyTensor(makeTensorbyShape(A, 1), A);
 
-    Tensor* C = copyTensor(makeTensorbyShape(dC, 0), dC);
-    infoTensor(C);
+    Tensor*dAt = makeTensorbyShape(At, 1);
 
-    printf("%.02f", C->T[224 * 3 + 4]);
+    int shape[] = {2, 3, 1, 0};
+
+    dAt = copyReshapeTensor(dAt, dA, shape);
+    At = copyTensor(At, dAt);
+
+    int sp[] = {0, 1, 1, 1};
+    int sub_dim[] = {2, 2, 2, 3};
+    Tensor* subdAt = makeSubTensor(dAt, sp, sub_dim, 4);
+    for(int i=0; i < 4; i++){
+        shape[i] = i;
+    }
+    printTensor(copyTensor(makeTensorbyShape(subdAt, 0),copyReshapeTensor(makeTensorbyShape(subdAt, 1), subdAt, shape)));
+    printTensor(At);
+
+
     
 
     // Tensor* dA = copyTensor(makeTensorbyShape(A, 1), A);

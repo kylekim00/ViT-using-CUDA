@@ -60,10 +60,10 @@ Tensor* makeTensorbyShape(Tensor* src, int device_type){
         printf("SouRCe is vacant.\n");
         return NULL;
     }
-    if(src->isSub){
-        printf("Source is SubTensor.\n");
-        return NULL;
-    }
+    // if(src->isSub){
+    //     printf("Source is SubTensor.\n");
+    //     return NULL;
+    // }
     return makeTensor(src->dim, src->num_dim, device_type);
 }
 
@@ -315,7 +315,7 @@ __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_d
         inx += new_tmp / dst_dim_stride[i] * src_dim_stride[reshape[i]];
         new_tmp %= dst_dim_stride[i];
     }
-    if(inx < sizeTensor)
+    if(new_inx < sizeTensor)                            //This is for dst because tile size could go over the sizeTensor.
         dst[new_inx] = src[inx];
 
 
@@ -335,7 +335,7 @@ Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
         return NULL;
     }
 
-    if(src->dim[0] * src->stride[0] != dst->dim[0] * dst->stride[0]){
+    if(src->sizeTensor != dst->sizeTensor){
         printf("DEVICE NUM OF ELEMENT DOES NOT MATCH.\n");
         return NULL;
     }
@@ -460,6 +460,7 @@ __global__ void checkmem(int* arr, int len){
     }
     printf("\n");
 }
+
 Tensor* compMatMul(Tensor* dC, Tensor* dA, Tensor* dB){
     if(!dC||!dB||!dA){
         printf("one of Tensor is NULL.\n");
