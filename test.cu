@@ -1,6 +1,6 @@
 #include<stdio.h>
 #include<stdlib.h>
-#include"tensor_struct.h"
+#include"easy_tensor.h"
 Tensor* dummyTensor(Tensor *ten){
     for(int i=0; i < ten->dim[0] * ten->stride[0]; i++){
         float dm = i;

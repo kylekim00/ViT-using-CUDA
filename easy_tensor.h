@@ -19,6 +19,7 @@ typedef struct Tensor{
 
 //만들고
 Tensor *makeTensor(int *dim, int num_dim, int device_type);
+
 //모양따라 만들고.
 Tensor *makeTensorbyShape(Tensor* src, int device_type);
 

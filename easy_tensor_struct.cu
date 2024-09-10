@@ -1,7 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<cuda_runtime.h>
-#include "tensor_struct.h"
+#include "easy_tensor.h"
 //나중에는 나눠서 각각의 gpu 안에 넣어야하기 때문에 생각을 해보면 인덱스 값에 따라 값을 copy 해주는 것도 있으면 좋을 것 같다.
 //기존 텐서와 다른점. 
 
