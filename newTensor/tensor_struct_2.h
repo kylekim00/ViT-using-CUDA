@@ -42,6 +42,8 @@ void printTensor(Tensor *ten);
 void infoTensor(Tensor *ten);
 
 
+Tensor* compMatMul(Tensor*dC, Tensor* dA, Tensor* dB);
+
 Tensor* matmul(Tensor* dC, Tensor *dA, Tensor* dB);
 Tensor* matmul_matwise(Tensor* dC, Tensor *dA, Tensor* dB);
 #endif // TENSOR_H
