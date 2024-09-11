@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 
 #define tile_SIZE 8
+#define MAX_NUM_DIM 30
 
 typedef struct Tensor{
     float *T;           //명심해라. 이건 배열이 아니라 시작주소이다.
@@ -18,13 +19,13 @@ typedef struct Tensor{
 }Tensor;
 
 //만들고
-Tensor *makeTensor(int *dim, int num_dim, int device_type);
+Tensor *makeTensor(const char dim[], int device_type);
 
 //모양따라 만들고.
 Tensor *makeTensorbyShape(Tensor* src, int device_type);
 
 //약간 커서같은 느낌. 그 부분의 값을 공유.
-Tensor *makeSubTensor(Tensor* src, int* start_point, int* dim, int num_dim);
+Tensor *makeSubTensor(Tensor* src, const char* start_point, const char* dim);
 
 //메모리 해제
 void freeTensor(Tensor *ten);
@@ -46,7 +47,6 @@ void infoTensor(Tensor *ten);
 Tensor* compMatMul(Tensor*dC, Tensor* dA, Tensor* dB);
 
 Tensor* matmul(Tensor* dC, Tensor *dA, Tensor* dB);
-Tensor* matmul_matwise(Tensor* dC, Tensor *dA, Tensor* dB);
 #endif // TENSOR_H
 
 //주의할 점. 

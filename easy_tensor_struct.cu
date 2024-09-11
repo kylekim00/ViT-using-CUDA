@@ -9,7 +9,9 @@
 //2. num_dim이 1, 2 일때도 작동이 되도록한다.
 //3. device 위에 올라가 있을 경우 dim과 stride도 같이 device에 올려준다. [5, 1, 3, 3, 4] X [4, 1, 4, 2] 와 같은 복잡한 텐서도 행렬곱이 가능하게 하기 위함이다. 
 
-Tensor *makeTensor(int *dim, int num_dim, int device_type){
+
+
+Tensor *mallocTensor(int *dim, int num_dim, int device_type){
     if(!dim){                       //if There is no dim inside
         return NULL;
     }
@@ -54,6 +56,62 @@ Tensor *makeTensor(int *dim, int num_dim, int device_type){
     return ten;
 }
 
+Tensor* makeTensor(const char dim[], int device_type) {  // Use `const char[]`
+    int dim_[MAX_NUM_DIM];  // Array to store dimensions
+    int num_dim = 0;        // Counter for the number of dimensions
+
+    const char *ptr = dim;  // Pointer to traverse the string (now `const`)
+
+    // Skip leading spaces
+    while (*ptr == ' ') {
+        ptr++;
+    }
+
+    // Parse the dimension string
+    while (*ptr != '\0' && num_dim < MAX_NUM_DIM) {  // Ensure we don't exceed max dims
+        // Skip spaces and commas between numbers
+        while (*ptr == ' ' || *ptr == ',') {
+            ptr++;
+        }
+
+        if (*ptr == '\0') {
+            break;  // End of string
+        }
+
+        int value = 0;
+        int sign = 1;
+
+        // Optional: Handle negative numbers
+        if (*ptr == '-') {
+            sign = -1;
+            ptr++;
+        }
+
+        // Convert digit characters to integer
+        while (*ptr >= '0' && *ptr <= '9') {
+            value = value * 10 + (*ptr - '0');
+            ptr++;
+        }
+
+        // Store the parsed number in the dimensions array
+        dim_[num_dim++] = sign * value;
+
+        // Skip any spaces or commas after the number
+        while (*ptr == ' ' || *ptr == ',') {
+            ptr++;
+        }
+    }
+
+    // If no dimensions were parsed, return NULL or handle the error appropriately
+    if (num_dim == 0) {
+        printf("No valid dimensions were parsed.\n");
+        return NULL;
+    }
+
+    // Call makeTensor with the parsed dimensions
+    return mallocTensor(dim_, num_dim, device_type);
+}
+
 
 Tensor* makeTensorbyShape(Tensor* src, int device_type){
     if(!src){
@@ -64,11 +122,11 @@ Tensor* makeTensorbyShape(Tensor* src, int device_type){
     //     printf("Source is SubTensor.\n");
     //     return NULL;
     // }
-    return makeTensor(src->dim, src->num_dim, device_type);
+    return mallocTensor(src->dim, src->num_dim, device_type);
 }
 
 
-Tensor* makeSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
+Tensor* mallocSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
     if(src->isSub){
         printf("Cant light copy subTensor\n");
         return NULL;
@@ -126,7 +184,113 @@ Tensor* makeSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
     return subTensor;
 }
 
+Tensor* makeSubTensor(Tensor* src, const char start_point[], const char dim[]){
 
+    int start_point_[MAX_NUM_DIM];  // Array to store dimensions
+    int num_sp = 0;        // Counter for the number of dimensions
+
+    const char *ptr = start_point;  // Pointer to traverse the string (now `const`)
+
+    // Skip leading spaces
+    while (*ptr == ' ') {
+        ptr++;
+    }
+
+    // Parse the dimension string
+    while (*ptr != '\0') {  // Ensure we don't exceed max dims
+        // Skip spaces and commas between numbers
+        while (*ptr == ' ' || *ptr == ',') {
+            ptr++;
+        }
+
+        if (*ptr == '\0') {
+            break;  // End of string
+        }
+
+        int value = 0;
+        int sign = 1;
+
+        // Optional: Handle negative numbers
+        if (*ptr == '-') {
+            sign = -1;
+            ptr++;
+        }
+
+        // Convert digit characters to integer
+        while (*ptr >= '0' && *ptr <= '9') {
+            value = value * 10 + (*ptr - '0');
+            ptr++;
+        }
+
+        // Store the parsed number in the dimensions array
+        start_point_[num_sp++] = sign * value;
+
+        // Skip any spaces or commas after the number
+        while (*ptr == ' ' || *ptr == ',') {
+            ptr++;
+        }
+    }
+
+    // If no dimensions were parsed, return NULL or handle the error appropriately
+    if (num_sp != src->num_dim) {
+        printf("not an appropriate dimention number for starting point");
+        return NULL;
+    }
+
+    ///////////////////////////////////////////////////////////////////////
+    int dim_[MAX_NUM_DIM];  // Array to store dimensions
+    int num_dim = 0;        // Counter for the number of dimensions
+
+    ptr = dim;  // Pointer to traverse the string (now `const`)
+
+    // Skip leading spaces
+    while (*ptr == ' ') {
+        ptr++;
+    }
+
+    // Parse the dimension string
+    while (*ptr != '\0' && num_dim < MAX_NUM_DIM) {  // Ensure we don't exceed max dims
+        // Skip spaces and commas between numbers
+        while (*ptr == ' ' || *ptr == ',') {
+            ptr++;
+        }
+
+        if (*ptr == '\0') {
+            break;  // End of string
+        }
+
+        int value = 0;
+        int sign = 1;
+
+        // Optional: Handle negative numbers
+        if (*ptr == '-') {
+            sign = -1;
+            ptr++;
+        }
+
+        // Convert digit characters to integer
+        while (*ptr >= '0' && *ptr <= '9') {
+            value = value * 10 + (*ptr - '0');
+            ptr++;
+        }
+
+        // Store the parsed number in the dimensions array
+        dim_[num_dim++] = sign * value;
+
+        // Skip any spaces or commas after the number
+        while (*ptr == ' ' || *ptr == ',') {
+            ptr++;
+        }
+    }
+
+    // If no dimensions were parsed, return NULL or handle the error appropriately
+    if (num_dim == 0) {
+        printf("No valid dimensions were parsed.\n");
+        return NULL;
+    }
+
+    return mallocSubTensor(src, start_point_, dim_, num_dim);
+}
 
 //================================================FREEEEEEEEEEEE===============================================================
 
