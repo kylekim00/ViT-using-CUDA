@@ -559,8 +559,6 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
     }
     matIdx_tmp %= dimC[num_dim + i];
 }
-
-// printf("matIdx_A: %d, matIdx_B: %d, mat_idx_C: %d\n", matIdx_A, matIdx_B, matIdx_C);
     
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -593,7 +591,15 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
 
         __syncthreads();
     }
-    // if(row==0 && col==0 && matIdx_C == 1){
+
+    // if(row==0 && col==0 && matIdx_C == 0){
+    //     for(int i=0; i < tile_SIZE; i++){
+    //         for(int j=0; j < tile_SIZE; j++){
+    //             printf("%.02f\t", s_a[i][j]);
+    //         }
+    //         printf("\n");
+    //     }
+    //     printf("\n");
     //     for(int i=0; i < tile_SIZE; i++){
     //         for(int j=0; j < tile_SIZE; j++){
     //             printf("%.02f\t", s_b[i][j]);
@@ -601,10 +607,12 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
     //         printf("\n");
     //     }
     // }
+    // printf("[%d %d] [%d %d]\n", row, col, dimC[num_dim - 2], dimC[num_dim-1]);
     if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
         if (bias)
             tmp = tmp + bias[col];
-        C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[num_dim - 2] + col] = tmp;
+        printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
+        C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
     }
 
 }
@@ -690,7 +698,7 @@ Tensor* compMatMul(Tensor* dC, Tensor* dA, Tensor* dB){
     }
 
     cudaSetDevice(dA->device_type - 1);
-    dim3 dimGrid((dA->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[dC->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+    dim3 dimGrid((dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[dC->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
     dim3 dimBlock(tile_SIZE, tile_SIZE);
 
     compTiledMM_Abig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim);
