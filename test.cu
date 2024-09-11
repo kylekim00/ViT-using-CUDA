@@ -12,14 +12,14 @@ Tensor* dummyTensor(Tensor *ten){
 
 
 int main(){
-    Tensor *A = makeTensor("4 3 2 4", 0);
+    Tensor *A = makeTensor("4 1 2 4", 0);
     A = dummyTensor(A);
     Tensor* B = makeTensor("3, 2, 5", 0);
     B = dummyTensor(B);
     // Tensor* subA = makeSubTensor(A, "0 0 0 1", "3 1 2 2");
     Tensor* dA = copyTensor(makeTensorbyShape(A, 1), A);
     Tensor* dB = copyTensor(makeTensorbyShape(B, 1), B);
-    Tensor *dA_sub = makeSubTensor(dA, "0 0 0 1", "3 3 2 2");
+    Tensor *dA_sub = makeSubTensor(dA, "0 0 0 1", "3 1 2 2");
     int df[] = {0, 1, 2, 3};
     printTensor(copyTensor(makeTensorbyShape(dA_sub, 0),copyReshapeTensor(makeTensorbyShape(dA_sub, 1), dA_sub, df)));
     printTensor(B);
