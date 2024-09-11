@@ -573,13 +573,13 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
         //A와 B에 데이터를 넣을 때 matIdx에 차이를 두어야 한다.
         //예를 들자면 matIdx_A = blockDim.z * blockIdx.z / big_Dim_stride; 이러면 반복이 되니까.
         if (row < dimA[num_dim - 2] && (i * tile_SIZE + threadIdx.x) < dimA[num_dim - 1])
-            s_a[threadIdx.y][threadIdx.x] = A[matIdx_A + row * dimA[num_dim - 1] + (i * tile_SIZE + threadIdx.x)];
+            s_a[threadIdx.y][threadIdx.x] = A[matIdx_A + row * dimA[2*num_dim - 2] + (i * tile_SIZE + threadIdx.x)];
         else 
             s_a[threadIdx.y][threadIdx.x] = 0.0f;
         
 
         if (col < dimB[little_num_dim-1] && (i * tile_SIZE + threadIdx.y) < dimA[num_dim-1])
-            s_b[threadIdx.y][threadIdx.x] = B[matIdx_B  + (i * tile_SIZE + threadIdx.y) * dimB[little_num_dim - 1] + col];
+            s_b[threadIdx.y][threadIdx.x] = B[matIdx_B  + (i * tile_SIZE + threadIdx.y) * dimB[2*little_num_dim - 2] + col];
         else
             s_b[threadIdx.y][threadIdx.x] = 0.0f;
 
@@ -611,7 +611,7 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
     if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
         if (bias)
             tmp = tmp + bias[col];
-        printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
+        // printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
         C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
     }
 
