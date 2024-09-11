@@ -472,6 +472,7 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
 __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_dim_stride, int* reshape, int num_dim, int sizeTensor){
     src_dim_stride += num_dim;
     dst_dim_stride += num_dim;
+
     int new_inx = blockDim.x * blockIdx.x + threadIdx.x;
     int new_tmp = new_inx;
     int inx = 0;
@@ -489,6 +490,7 @@ __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_d
 Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
     if(dst->isSub){
         printf("dst can't be subMatrix.\n");
+        return NULL;
     }
     if(src->device_type != dst->device_type){
         printf("DEVICE NOT MATCH.\n");
