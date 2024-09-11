@@ -3,11 +3,10 @@
 #include<float.h>
 #include <curand.h>
 #include <curand_kernel.h>
-#include "tensor_struct.h"
+#include "easy_tensor.h"
 
 #define MODEL_DIM 16
 
-int random_seed = 10;
 
 Tensor* copyTensorfromFILE(Tensor* dst, char* file_name){
     char f_name[50] = "./pre_weights/";
@@ -36,7 +35,7 @@ Tensor* copyTensorfromFILE(Tensor* dst, char* file_name){
 
 
 
-Tensor* Attention_Naive(Tensor *dO, Tensor *dX, Tensor *Wqkv,Tensor* QKV, int model_dim){
+Tensor* Attention_Naive(Tensor *dO, Tensor *dX, Tensor *Wqkv, Tensor* QKV, int model_dim){
     //if()
     // int num_Token = dX->dim[dX->num_dim-2];
     // int model_Dim = Wqkv->dim[dX->num_dim-1];
@@ -60,9 +59,8 @@ int main(){
     int QKV_dim[] = {batch_size, 1, num_Token, num_head * 3 * hidden_dim};
     
     //pretrained weight initialization
-    Tensor* W = makeTensor(qkv_weight_dim, 3, 0);
+    Tensor* W = mallocTensor(qkv_weight_dim, 3, 0);
     W = copyTensorfromFILE(W, "qkv_W.bin");
-    printf("\n%f\n", W->T[W->dim[0]*W->stride[0]-2]);
 
 
     

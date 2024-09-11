@@ -18,6 +18,7 @@ typedef struct Tensor{
     char isSub;         //subTensor인지 확인해줌.
 }Tensor;
 
+Tensor *mallocTensor(int *dim, int num_dim, int device_type);
 //만들고
 Tensor *makeTensor(const char dim[], int device_type);
 
@@ -37,7 +38,7 @@ Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape);
 
 //얘는 dst, src모두 완전한Tensor 이어야한다. 대신 빠름.
 Tensor* copyTensor(Tensor* dst, Tensor* src);
-
+Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src);
 //값 출력. CPU만 된다.
 void printTensor(Tensor *ten);
 //정보 출력. 다 된다.
