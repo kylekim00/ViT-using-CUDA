@@ -15,29 +15,12 @@ int main(){
     for(int i=0; i < sizeof(W)/sizeof(Tensor*); i++){
         infoTensor(W[i]);
     }
-
-}
-
-Tensor* copyTensorfromFILE(Tensor* dst, char* file_name){
-    char f_name[50] = "./pre_weights/";
-    for(int i=0; file_name[i]; i++){
-        f_name[i+14] = file_name[i];
-        f_name[i+15] = 0;
-    }
     
-    FILE *file = fopen(f_name, "rb");
-    if (!file) {
-        printf("Error opening file\n");
-        return NULL;
+    Tensor* dW[4];//loaded weight to device
+    for(int i=0; i < sizeof(dW)/sizeof(Tensor*); i++){
+        dW[i] = copyTensor(makeTensorbyShape(W[i], 1), W[i]);
     }
 
-    size_t num_elements = fread(dst->T, sizeof(float), dst->dim[0]*dst->stride[0], file);
-    if (num_elements != dst->dim[0]*dst->stride[0]) {
-        printf("Error reading file\n");
-        return NULL;
-    }
-
-    fclose(file);
-
-    return dst;
+    
+    
 }
