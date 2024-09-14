@@ -19,6 +19,7 @@ typedef struct Tensor{
 }Tensor;
 
 Tensor *mallocTensor(int *dim, int num_dim, int device_type);
+
 //만들고
 Tensor *makeTensor(const char dim[], int device_type);
 

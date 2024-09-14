@@ -4,7 +4,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include "easy_tensor.h"
-
+#include<string.h>
 #define MODEL_DIM 16
 
 
@@ -36,11 +36,6 @@ Tensor* copyTensorfromFILE(Tensor* dst, char* file_name){
 
 
 Tensor* Attention_Naive(Tensor *dO, Tensor *dX, Tensor *Wqkv, Tensor* QKV, int model_dim){
-    //if()
-    // int num_Token = dX->dim[dX->num_dim-2];
-    // int model_Dim = Wqkv->dim[dX->num_dim-1];
-    // int X_dim = dX->dim[dX->num_dim-1];
-
     //QKV matmul
     QKV = matmul(QKV, dX, Wqkv);
 
@@ -62,13 +57,11 @@ int main(){
     Tensor* W = mallocTensor(qkv_weight_dim, 3, 0);
     W = copyTensorfromFILE(W, "qkv_W.bin");
 
-
+    Tensor* input = mallocTensor(input_dim, 4, 1);
+    Tensor* Wqkv = mallocTensor(qkv_weight_dim, 3, 1);
+    Tensor* QKV = mallocTensor(QKV_dim, 4, 1);
     
-    Tensor* input = makeTensor(input_dim, 4, 1);
-    Tensor* Wqkv = makeTensor(qkv_weight_dim, 3, 1);
-    Tensor* QKV = makeTensor(QKV_dim, 4, 1);
 
-    matmul(QKV, input, Wqkv);
 }
 
 

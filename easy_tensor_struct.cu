@@ -533,9 +533,44 @@ Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
     return dst;
 }
 
+
+//빠르긴 한데....
+__global__ void transposeCoalesced(float *odata, const float *idata, int dst_row, int dst_col, int src_col_stride, int dst_mat_stride, int src_mat_stride){
+    __shared__ float tile[tile_SIZE][tile_SIZE];
+    int x = blockIdx.y * tile_SIZE + threadIdx.x;  // 이건 dst를 기준으로 만든것. 일단 dim은 똑같기 때문에 조심해서 해보자. 
+    int y = blockIdx.x * tile_SIZE + threadIdx.y;
+    int z = blockIdx.z;
+    if(x < dst_row)
+        for (int j = 0; j < tile_SIZE && (y+j) < dst_col; j++)
+            tile[threadIdx.x][threadIdx.y + j] = idata[z * src_mat_stride + (y+j)*src_col_stride + x];//src_row는 stride[num_dim - 2] 그리고 어차피 필요한건 다 저장이 되기 때문에 굳이 쓰레긱 값에 집중하지 말자.
+    __syncthreads();
+    x = blockIdx.x * tile_SIZE + threadIdx.x;
+    y = blockIdx.y * tile_SIZE + threadIdx.y;
+
+    // if(x ==8 && y==0 && z==0){
+    //     for(int i=0; i < tile_SIZE; i++){
+    //         for(int j=0; j < tile_SIZE; j++){
+    //             printf("%.02f ", tile[i][j]);
+    //         }
+    //         printf("\n");
+    //     }
+    // }
+    
+    if(x < dst_col){
+        for (int j = 0; j < tile_SIZE && y+j < dst_row; j++)
+            odata[z * dst_mat_stride + (y+j) * dst_col + x] = tile[threadIdx.y+j][threadIdx.x];
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src){
     if(dst->device_type != src->device_type){
         printf("device_type does not match.\n");
+        return NULL;
+    }
+    if(dst->num_dim <2){
+        printf("dimention lesser than 2 dimention need no Transpose.\n");
         return NULL;
     }
     if(dst->num_dim != src->num_dim){
@@ -549,16 +584,36 @@ Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src){
             return NULL;
         }
     }
-
     if(dst->dim[dst->num_dim - 1] != src->dim[src->num_dim-2] || dst->dim[dst->num_dim - 2] != src->dim[src->num_dim-1]){
         printf("row and col does not match.\n");
         return NULL;
     }
+    
 
+    if(dst->isSub){
+        printf("dst sub Matrix not allowed\n");
+        return NULL;
+    }
     
     if(dst->device_type){
+        int dim_mat_dst;
+        int dim_mat_src;
+        int z;
+
+        if(dst->num_dim == 2){
+            dim_mat_dst = dst->sizeTensor;
+            dim_mat_src = src->sizeTensor;
+            z = 1;
+        }else{
+            dim_mat_dst = dst->stride[dst->num_dim - 3];
+            dim_mat_src = src->stride[dst->num_dim - 3];
+            z = dst->sizeTensor / dst->stride[dst->num_dim - 3];
+        }
         cudaSetDevice(dst->device_type-1);
-        //<><><><>
+        dim3 dimGrid((dst->dim[dst->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dst->dim[dst->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, z); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+        dim3 dimBlock(tile_SIZE,1);
+
+        transposeCoalesced<<<dimGrid, dimBlock>>>(dst->T, src->T, dst->dim[dst->num_dim - 2], dst->dim[dst->num_dim - 1], src->stride[src->num_dim - 2], dim_mat_dst, dim_mat_src);
     }else{
         if(dst->num_dim == 1){
             for(int i=0; i < dst->sizeTensor; i++){
@@ -584,6 +639,7 @@ Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src){
         }
     }
     return dst;
+
 }
 
 //이거 num_dim 3이상이어야 한다.
