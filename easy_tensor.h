@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <cuda_runtime.h>
 
-#define tile_SIZE 8
+#define tile_SIZE 4
 #define MAX_NUM_DIM 30
 
 typedef struct Tensor{
@@ -39,17 +39,24 @@ Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape);
 
 //얘는 dst, src모두 완전한Tensor 이어야한다. 대신 빠름.
 Tensor* copyTensor(Tensor* dst, Tensor* src);
-Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src);
+Tensor* copyTransposeTensor(Tensor* dst, Tensor* src);
 //값 출력. CPU만 된다.
-void printTensor(Tensor *ten);
+Tensor* printTensor(Tensor *ten);
 //정보 출력. 다 된다.
 void infoTensor(Tensor *ten);
 
 
-Tensor* compmatmul(Tensor*dC, Tensor* dA, Tensor* dB);
-
 Tensor* matmul(Tensor* dC, Tensor *dA, Tensor* dB);
+Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_bias);
+Tensor* ReLU_inline(Tensor *ten);
+
+
+
+
+
+
 #endif // TENSOR_H
 
 //주의할 점. 
 //어차피 할당된 곳을 계속 쓰게 되어있다. 굳이 free할 일이 거의 없으므로 웬만하면 inline 또는 dst, src 꼴로 만들어 주는 것이 제일 좋다.
+/////////////////////////////////MHA_BLK////////////////////////////////////////////

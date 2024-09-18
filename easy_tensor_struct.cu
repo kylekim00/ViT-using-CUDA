@@ -1,6 +1,8 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<cuda_runtime.h>
+#include <math.h>
+
 #include "easy_tensor.h"
 //나중에는 나눠서 각각의 gpu 안에 넣어야하기 때문에 생각을 해보면 인덱스 값에 따라 값을 copy 해주는 것도 있으면 좋을 것 같다.
 //기존 텐서와 다른점. 
@@ -367,10 +369,14 @@ void infoTensor(Tensor *ten){
     printf("\n==========================\n");
 }
 
-void printTensor(Tensor *ten){
+Tensor* printTensor(Tensor *ten){
+    if(!ten){
+        printf("No tensor.\n");
+        return NULL;
+    }
     if(ten->device_type){
         printf("printTensor : GPU mem can not be printed\n");
-        return;
+        return ten;
     }
     infoTensor(ten);
     //==============if ten->num_dim < 3========================
@@ -380,7 +386,7 @@ void printTensor(Tensor *ten){
             printf("%.02f\t", ten->T[i]);
         }
         printf("\n");
-        return;
+        return ten;
     }
     if(ten->num_dim == 2){
         printf("[ %d %d ]\n", ten->dim[0], ten->dim[1]);
@@ -392,7 +398,7 @@ void printTensor(Tensor *ten){
             printf("\n");
         }
         printf("\n");
-        return;
+        return ten;
     }
     //=================else====================================
     printf("=\n");
@@ -429,6 +435,7 @@ void printTensor(Tensor *ten){
     }
     printf("=\n");
     free(tmp_Inx);
+    return ten;
 }
 
 Tensor* copyTensor(Tensor *dst, Tensor *src){
@@ -456,14 +463,14 @@ Tensor* copyTensor(Tensor *dst, Tensor *src){
     }
 
     else if(dst->device_type && src->device_type){
-        cudaMemcpy(dst->T, src->T, dst->dim[0]*dst->stride[0] * sizeof(float), cudaMemcpyDeviceToDevice);
+        cudaMemcpy(dst->T, src->T, dst->sizeTensor * sizeof(float), cudaMemcpyDeviceToDevice);
     }
     else if(dst->device_type){
         cudaSetDevice(dst->device_type -1);
-        cudaMemcpy(dst->T, src->T, dst->dim[0]*dst->stride[0] * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(dst->T, src->T, dst->sizeTensor * sizeof(float), cudaMemcpyHostToDevice);
     }else{
         cudaSetDevice(src->device_type -1);
-        cudaMemcpy(dst->T, src->T, dst->dim[0]*dst->stride[0] * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(dst->T, src->T, dst->sizeTensor * sizeof(float), cudaMemcpyDeviceToHost);
     }
     return dst;
 }
@@ -512,7 +519,7 @@ Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
         cudaMalloc(&d_tmp_reshape, sizeof(int) * dst->num_dim);
         cudaMemcpy(d_tmp_reshape, reshape, sizeof(int) * dst->num_dim, cudaMemcpyHostToDevice);
         
-        int s_tile_SIZE = tile_SIZE * tile_SIZE;
+        int s_tile_SIZE = tile_SIZE * tile_SIZE * 2;//no special drawbacks in parallel sequence 임
         
         reshape_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, src->T, dst->d_dim_stride, src->d_dim_stride, d_tmp_reshape, src->num_dim, dst->sizeTensor);
         cudaFree(d_tmp_reshape);
@@ -564,7 +571,7 @@ __global__ void transposeCoalesced(float *odata, const float *idata, int dst_row
 
 //////////////////////////////////////////////////////////////////////////////////
 
-Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src){
+Tensor* copyTransposeTensor(Tensor* dst, Tensor* src){
     if(dst->device_type != src->device_type){
         printf("device_type does not match.\n");
         return NULL;
@@ -644,7 +651,7 @@ Tensor* copyTranspose2DTensor(Tensor* dst, Tensor* src){
 
 //이거 num_dim 3이상이어야 한다.
 //This has to have Z dim value of C->sizeTensor / C->stride[C->num_dim - 2]
-__global__ void compTiledMM_Abig(float*A, float *B, float *C, float *bias, int *dimA, int *dimB, int *dimC, int num_dim, int little_num_dim){
+__global__ void compTiledMM_Abig(float*A, float *B, float *C, float *bias, int *dimA, int *dimB, int *dimC, int num_dim, int little_num_dim, char bias_row){
     int matIdx_A = 0, matIdx_B = 0;
     int matIdx_C = blockDim.z * blockIdx.z; //We multiply matrixDim because We have to calculate the IdxA, IdxB.
     int cont = num_dim - little_num_dim;
@@ -717,15 +724,16 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
     // }
     // printf("[%d %d] [%d %d]\n", row, col, dimC[num_dim - 2], dimC[num_dim-1]);
     if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
+        int bias_row = 0;
         if (bias)
-            tmp = tmp + bias[col];
+            tmp = tmp + bias[(bias_row?row:col)];
         // printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
         C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
     }
 
 }
 
-__global__ void compTiledMM_Bbig(float*A, float *B, float *C, float *bias, int *dimA, int *dimB, int *dimC, int little_num_dim, int num_dim){
+__global__ void compTiledMM_Bbig(float*A, float *B, float *C, float *bias, int *dimA, int *dimB, int *dimC, int little_num_dim, int num_dim, char bias_row){
     int matIdx_A = 0, matIdx_B = 0;
     int matIdx_C = blockDim.z * blockIdx.z; //We multiply matrixDim because We have to calculate the IdxA, IdxB.
     int cont = num_dim - little_num_dim;
@@ -781,39 +789,16 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
         __syncthreads();
     }
 
-    // if(row==0 && col==0 && matIdx_C == 0){
-    //     for(int i=0; i < tile_SIZE; i++){
-    //         for(int j=0; j < tile_SIZE; j++){
-    //             printf("%.02f\t", s_a[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    //     printf("\n");
-    //     for(int i=0; i < tile_SIZE; i++){
-    //         for(int j=0; j < tile_SIZE; j++){
-    //             printf("%.02f\t", s_b[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    // }
-    printf("[%d %d] [%d %d]\n", row, col, dimC[num_dim - 2], dimC[num_dim-1]);
     if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
         if (bias)
-            tmp = tmp + bias[col];
+            tmp = tmp + bias[(bias_row?row:col)];
         // printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
         C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
     }
 
 }
 
-
-// void compMatMul_(float *dA, float *dB, float *dC, float *dBias, int *dimA, int dimB, int *dimC){
-// //     dim3 dimGrid((N + tile_SIZE - 1) / tile_SIZE, (M + tile_SIZE - 1) / tile_SIZE, numofMat); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
-// //     dim3 dimBlock(tile_SIZE, tile_SIZE);
-// //     tiledMM<<<dimGrid, dimBlock>>>(dA, dB, dC, dBias, M, N, K, big_dim_stride, big_A_True);
-// }
-
-__global__ void tiledMM_Half_bigA(float *A, float *B, float *C, float *bias, int* A_dim_stride, int *B_dim_stride, int C_mat_dim, int num_dim_A, int num_dim_B){
+__global__ void tiledMM_Half_bigA(float *A, float *B, float *C, float *bias, int* A_dim_stride, int *B_dim_stride, int C_mat_dim, int num_dim_A, int num_dim_B, char bias_row){
     
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -842,15 +827,8 @@ __global__ void tiledMM_Half_bigA(float *A, float *B, float *C, float *bias, int
             s_b[threadIdx.y][threadIdx.x] = 0.0f;
 
         __syncthreads();
-        if(row==0 && col== 0 && A_matidx == 1){
-            printf("inx :::::: %d\n",A_dim_stride[num_dim_A - 1]);
-            for(int i=0; i < tile_SIZE; i++){
-                for(int j=0; j < tile_SIZE; j++){
-                    printf("%.02f ", s_b[i][j]);
-                }
-                printf("\n");
-            }
-        }
+        // if(row==0 && col== 0 && A_matidx == 1){
+        // }
         for (int j = 0; j < tile_SIZE; j++) {
             tmp += s_a[threadIdx.y][j] * s_b[j][threadIdx.x];
         }
@@ -860,7 +838,7 @@ __global__ void tiledMM_Half_bigA(float *A, float *B, float *C, float *bias, int
 
     if (row < A_dim_stride[num_dim_A - 2] && col < B_dim_stride[num_dim_B - 1]) {
         if (bias)
-            tmp = tmp + bias[col];
+            tmp = tmp + bias[(bias_row?row:col)];
         C[blockIdx.z * C_mat_dim + row * B_dim_stride[num_dim_B - 1] + col] = tmp;
         
     }
@@ -870,7 +848,7 @@ __global__ void tiledMM_Half_bigA(float *A, float *B, float *C, float *bias, int
 
 
 
-__global__ void tiledMM_Half_bigB(float *A, float *B, float *C, float *bias, int* A_dim_stride, int *B_dim_stride, int C_mat_dim, int num_dim_A, int num_dim_B){
+__global__ void tiledMM_Half_bigB(float *A, float *B, float *C, float *bias, int* A_dim_stride, int *B_dim_stride, int C_mat_dim, int num_dim_A, int num_dim_B, char bias_row){
     
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -909,7 +887,7 @@ __global__ void tiledMM_Half_bigB(float *A, float *B, float *C, float *bias, int
 
     if (row < A_dim_stride[num_dim_A - 2] && col < B_dim_stride[num_dim_B - 1]) {
         if (bias)
-            tmp = tmp + bias[col];
+            tmp = tmp + bias[(bias_row?row:col)];
         C[blockIdx.z * C_mat_dim + row * B_dim_stride[num_dim_B - 1] + col] = tmp;
     }
 
@@ -917,12 +895,7 @@ __global__ void tiledMM_Half_bigB(float *A, float *B, float *C, float *bias, int
 
 
 
-
-
-
-
-
-__global__ void tiledMM_2d(float *A, float *B, float *C, float *bias, int M, int N, int K, int A_stride, int B_stride) {    
+__global__ void tiledMM_2d(float *A, float *B, float *C, float *bias, int M, int N, int K, int A_stride, int B_stride, char bias_row) {    
     
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
@@ -951,23 +924,24 @@ __global__ void tiledMM_2d(float *A, float *B, float *C, float *bias, int M, int
         }
 
         __syncthreads();
+
     }
 
     if (row < M && col < N) {
         if (bias)
-            tmp = tmp + bias[col];
+            tmp = tmp + bias[(bias_row?row:col)];
         C[row * N + col] = tmp;
     }
 }
 
-__global__ void checkmem(int* arr, int len){
+__global__ void checkmem(float* arr, int len){
     for(int i=0; i < len; i++){
-        printf("%d ", arr[i]);
+        printf("%f ", arr[i]);
     }
     printf("\n");
 }
 
-Tensor* compmatmul(Tensor* dC, Tensor* dA, Tensor* dB){
+Tensor* matmul(Tensor* dC, Tensor* dA, Tensor* dB){
     if(!dC||!dB||!dA){
         printf("one of Tensor is NULL.\n");
         return NULL;
@@ -1019,7 +993,7 @@ Tensor* compmatmul(Tensor* dC, Tensor* dA, Tensor* dB){
         cudaSetDevice(bigTensor->device_type-1);
         dim3 dimGrid((dB->dim[dB->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dA->dim[dA->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, 1); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
         dim3 dimBlock(tile_SIZE, tile_SIZE);
-        tiledMM_2d<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->dim[0], dB->dim[1], dA->dim[1], dA->stride[0], dB->stride[0]);
+        tiledMM_2d<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->dim[0], dB->dim[1], dA->dim[1], dA->stride[0], dB->stride[0], 0);
     
     }
     else{
@@ -1032,20 +1006,14 @@ Tensor* compmatmul(Tensor* dC, Tensor* dA, Tensor* dB){
         }
         
         if(smallTensor->num_dim == 2){
-            //이걸 해결해야함.
-            char bigisA = (dA == bigTensor)?1:0;
-            /////////////////
 
             cudaSetDevice(dA->device_type - 1);
-            dim3 dimGrid((dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[bigTensor->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+            dim3 dimGrid((dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[bigTensor->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
             dim3 dimBlock(tile_SIZE, tile_SIZE);
             if(dA == bigTensor)
-                tiledMM_Half_bigA<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim);
+                tiledMM_Half_bigA<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, 0);
             else
-                tiledMM_Half_bigB<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim);
-    //__global__ void tiledMM_Half(float *A, float *B, float *C, float *bias, int* A_dim_stride, int *B_dim_stride, int C_mat_dim, int num_dim_A, int num_dim_B, char isAbig){
-
-            //////////////////
+                tiledMM_Half_bigB<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, 0);
 
         }else{
 
@@ -1060,12 +1028,129 @@ Tensor* compmatmul(Tensor* dC, Tensor* dA, Tensor* dB){
             }
 
             cudaSetDevice(dA->device_type - 1);
-            dim3 dimGrid((dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[dC->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+            dim3 dimGrid((dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[dC->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
             dim3 dimBlock(tile_SIZE, tile_SIZE);
             if(dA == bigTensor)
-                compTiledMM_Abig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim);
+                compTiledMM_Abig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, 0);
             else
-                compTiledMM_Bbig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim);
+                compTiledMM_Bbig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, 0);
+            
+        }
+        
+    }
+    
+    return dC;
+    
+    //if [5, 1, 3, 4, 5] x [4, 1, 5, 4]
+    
+
+}
+
+
+Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_bias){
+    if(!dC||!dB||!dA||!dbias){
+        printf("one of Tensor is NULL.\n");
+        return NULL;
+    }
+    if(dC->isSub){
+        printf("The result Matrix can not be a sub Matrix.\n");
+        return NULL;
+    }
+    if(dC->device_type != dB->device_type || dB->device_type != dA->device_type || dbias->device_type != dA->device_type){
+        printf("Four matrices are in different device.");
+        return NULL;
+    }
+
+    
+    if(dC->num_dim <2 || dB->num_dim <2 || dA->num_dim <2){
+        printf("One of three Tensor has less than 2 dimentions.(Try to use matmul().)\n");
+        return NULL;
+    }
+    
+    if(dbias->num_dim != 1){
+        if(dbias->num_dim != 2 || dbias->dim[1] != dC->dim[dC->num_dim - 1]){
+            printf("bias not an appropriate dimention.\n");
+            return NULL;
+        }
+    }
+
+    if(dbias->dim[dbias->num_dim - 1] != dB->dim[dB->num_dim - 1]){
+        printf("Bias size does not fit to column(dB's last dim).\n");
+        return NULL;
+    }
+
+    //2. matrix col and row has to be the same.
+    if(dA->dim[dA->num_dim - 1] != dB->dim[dB->num_dim - 2]){
+        printf("tensor's row and column does not match.(%d %d)\n", dA->dim[dA->num_dim - 1], dB->dim[dB->num_dim - 2]);
+        return NULL;
+    }
+
+    if(dA->dim[dA->num_dim - 2] != dC->dim[dC->num_dim - 2] || dB->dim[dB->num_dim - 1] != dC->dim[dC->num_dim - 1]){
+        printf("tensor's row and column does not match.\n");
+        return NULL;
+    }
+    
+    Tensor* bigTensor, *smallTensor;
+
+    if(dA->num_dim >= dB->num_dim){
+        bigTensor = dA;
+        smallTensor = dB;
+    }else{
+        bigTensor = dB;
+        smallTensor = dA;
+    }
+
+
+    if(bigTensor->num_dim != dC->num_dim){
+        printf("dC num_dim has to have same num_dim as bigger Tensor.\n");
+        return NULL;
+    }
+
+    if(bigTensor->num_dim ==2){
+        cudaSetDevice(bigTensor->device_type-1);
+        dim3 dimGrid((dB->dim[dB->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dA->dim[dA->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, 1); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+        dim3 dimBlock(tile_SIZE, tile_SIZE);
+        tiledMM_2d<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->dim[0], dB->dim[1], dA->dim[1], dA->stride[0], dB->stride[0], row_bias);
+    
+    }
+    else{
+        //num_dim이 모두 2보다 클 때
+        for(int i=0; i < bigTensor->num_dim - 2; i++){
+            if(bigTensor->dim[i] != dC->dim[i] && bigTensor->dim[i] != 1){
+                printf("%d dimention of Tensor(big) does not Match.\n", i);
+                return NULL;
+            }
+        }
+        
+        if(smallTensor->num_dim == 2){
+
+            cudaSetDevice(dA->device_type - 1);
+            dim3 dimGrid((dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[bigTensor->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+            dim3 dimBlock(tile_SIZE, tile_SIZE);
+            if(dA == bigTensor)
+                tiledMM_Half_bigA<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, row_bias);
+            else
+                tiledMM_Half_bigB<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, row_bias);
+
+        }else{
+
+            int cont = bigTensor->num_dim - smallTensor->num_dim;
+
+            //1. The tensor has to match if one of them is not 1.
+            for(int i=0; i < smallTensor->num_dim - 2; i++){
+                if(smallTensor->dim[i] != dC->dim[i+cont] && smallTensor->dim[i] != 1){
+                    printf("%d dimention of Tensor(small) does not Match.\n", i);
+                    return NULL;
+                }
+            }
+
+            cudaSetDevice(dA->device_type - 1);
+            dim3 dimGrid((dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[dC->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+            dim3 dimBlock(tile_SIZE, tile_SIZE);
+            if(dA == bigTensor)
+                compTiledMM_Abig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, row_bias);
+            else
+                compTiledMM_Bbig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, row_bias);
             
         }
         
@@ -1081,135 +1166,74 @@ Tensor* compmatmul(Tensor* dC, Tensor* dA, Tensor* dB){
 
 
 
-void matmul_matwise_(float *dA, float *dB, float *dC, float *dBias, int M, int N, int K, int numofMat, int big_dim_stride, int big_A_True) {
-    dim3 dimGrid((N + tile_SIZE - 1) / tile_SIZE, (M + tile_SIZE - 1) / tile_SIZE, numofMat); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
-    dim3 dimBlock(tile_SIZE, tile_SIZE);
-    // tiledMM<<<dimGrid, dimBlock>>>(dA, dB, dC, dBias, M, N, K, big_dim_stride, big_A_True);
+
+
+
+
+
+__global__ void ReLU(float* T, int sizeTensor){
+    int inx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(inx < sizeTensor)
+        T[inx] = (T[inx] >=0) ? T[inx] : 0;
 }
 
-Tensor* matmul(Tensor*dC, Tensor *dA, Tensor *dB){
-    if (dA->device_type != dB->device_type) {
-        printf("two source Matrix is on different device. dA : %d, dB: %d\n", dA->device_type, dB->device_type);
+
+Tensor* ReLU_inline(Tensor* ten){
+    if(!ten){
+        printf("No Tensor.\n");
         return NULL;
     }
-    if (dC->device_type != dA->device_type) {
-        printf("result matrix is on different device.dA : %d, dC: %d\n", dA->device_type, dC->device_type);
-        return NULL;
-    }
-
-    if(dA->dim[dA->num_dim - 1] != dB->dim[dB->num_dim-2]){//dA와 dB의 row, col이 맞는지를 확인하는 작업.
-        printf("number of column of dA and row of dB doesn't match\n");
-        return NULL;
-    }
-
-    if(dA->dim[dA->num_dim - 2] != dC->dim[dA->num_dim - 2] || dC->dim[dC->num_dim -1] != dB->dim[dB->num_dim - 1]){
-        printf("result matrix is in different dimension.\n");
-        return NULL;
-    }
-
-    int big_A_True = 0;//이건 어느게 더 큰놈인지 판단을 하는 것. A가 크면 1
-    
-    Tensor* bigTensor, *smallTensor;//큰놈을 큰놈에, 작은놈을 작은놈에
-
-    if(dA->num_dim > dB->num_dim){
-        big_A_True = 1;
-        bigTensor = dA;
-        smallTensor = dB;
+    if(ten->device_type){
+        cudaSetDevice(ten->device_type - 1);
+        ReLU<<<(ten->sizeTensor+tile_SIZE-1)/tile_SIZE, tile_SIZE*tile_SIZE>>>(ten->T, ten->sizeTensor);
     }else{
-        big_A_True = 0;
-        bigTensor = dB;
-        smallTensor = dA;
-    }
-    
-    if(dC->num_dim != bigTensor->num_dim){
-        printf("matrices have different dimension.(num_dim is different)\n");
-        return NULL;
-    }
-
-
-    if(bigTensor->num_dim ==2){
-        cudaSetDevice(bigTensor->device_type-1);
-        dim3 dimGrid((dB->dim[dB->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dA->dim[dA->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, 1); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
-        dim3 dimBlock(tile_SIZE, tile_SIZE);
-        tiledMM_2d<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, NULL, dA->dim[0], dB->dim[1], dA->dim[1], dA->stride[0], dB->stride[0]);
-    
-    }else{
-
-
-
+        for(int i=0; i < ten->sizeTensor; i++){
+            ten->T[i] = (ten->T[i] >=0) ? ten->T[i] : 0;
+        }
         
-        int dim_contrast = bigTensor->num_dim - smallTensor->num_dim;
-        for(int i= smallTensor->num_dim - 3; i >= 0; i--){// bigTensor와 smallTensor의 차원을 서로 비교하는 것.
-            if(bigTensor->dim[i + dim_contrast] != smallTensor-> dim[i]){
-                printf("matrices have different dimension.\n");
-                return NULL;
-            }
-        }
-
-        for(int i=0; i < bigTensor->num_dim-3; i++){
-            if(dA->dim[i] != dC->dim[i]){
-                printf("dim %d of source and result Matrix is not the same.\n", i);
-                return NULL;
-            }
-        }
-
-        int big_dim_stride = bigTensor->stride[dim_contrast-1] / bigTensor->stride[bigTensor->num_dim-3];
-        matmul_matwise_(dA->T, dB->T, dC->T, NULL, dA->dim[dA->num_dim - 2], dB->dim[dB->num_dim - 1], dA->dim[dA->num_dim - 1], bigTensor->dim[0] * bigTensor->stride[0] / bigTensor->stride[bigTensor->num_dim-3], big_dim_stride, big_A_True);
     }
-    return dC;
-    
+    return ten;
+}
+
+__global__ void gelu_(float* in, float* out, int len) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < len) {  
+        // Do the actual computation
+        out[i] = 0.5 * in[i] * (1.0 + tanh(0.79788456 * (in[i] + 0.044715 * in[i] * in[i] * in[i])));
+    }
 }
 
 
+// __global__ void sub_(float* dC, float* dA, float* dB, int len){
+//     int inx = blockDim.x * blockIdx.x + threadIdx.x;
+// }
 
-
-// __global__ void tiledMM(float *A, float *B, float *C, float *bias, int M, int N, int K, int big_dim_stride, int big_A_True) {
-//     //blockDim.z, blockIdx.z 이게 매트릭스의 수//z thread를 늘린다고 문제가 해결되지 않는다.
-//     int matIdx_A, matIdx_B;
-//     if(big_A_True){
-//         matIdx_A = blockDim.z * blockIdx.z;
-//         matIdx_B = matIdx_A % big_dim_stride;
-//     }else{
-//         matIdx_B = blockDim.z * blockDim.z;
-//         matIdx_A = matIdx_B % big_dim_stride;
+// Tensor* subtract_Tensor(Tensor* dC, Tensor* dB, Tensor* dA){
+//     if(!dC || !dA || !dB){
+//         printf("no Tensor\n");
+//         return NULL;
+//     }
+//     if(dC->device_type != dB->device_type && dB->device_type != dA->device_type){
+//         printf("Device type does not match\n");
+//         return NULL;
 //     }
     
-    
-//     int row = blockDim.y * blockIdx.y + threadIdx.y;
-//     int col = blockDim.x * blockIdx.x + threadIdx.x;
-//     __shared__ float s_a[tile_SIZE][tile_SIZE];
-//     __shared__ float s_b[tile_SIZE][tile_SIZE];
-
-//     float tmp = 0.0f;
-
-//     for (int i = 0; i < (K + tile_SIZE - 1) / tile_SIZE; i++) {
-//         if (row < M && (i * tile_SIZE + threadIdx.x) < K)
-//         //A와 B에 데이터를 넣을 때 matIdx에 차이를 두어야 한다.
-//         //예를 들자면 matIdx_A = blockDim.z * blockIdx.z / big_Dim_stride; 이러면 반복이 되니까.
-//             s_a[threadIdx.y][threadIdx.x] = A[matIdx_A * (K*M) + row * K + (i * tile_SIZE + threadIdx.x)];
-//         else
-//             s_a[threadIdx.y][threadIdx.x] = 0.0f;
-
-//         if (col < N && (i * tile_SIZE + threadIdx.y) < K)
-//             s_b[threadIdx.y][threadIdx.x] = B[matIdx_B * (K*N) +(i * tile_SIZE + threadIdx.y) * N + col];
-//         else
-//             s_b[threadIdx.y][threadIdx.x] = 0.0f;
-
-//         __syncthreads();
-
-//         for (int j = 0; j < tile_SIZE; j++) {
-//             tmp += s_a[threadIdx.y][j] * s_b[j][threadIdx.x];
+//     if(dC->num_dim != dB->num_dim || dC->num_dim != dA->num_dim){
+//         printf("Number of dim does not match.\n");
+//         return NULL;
+//     }
+//     for(int i=0; i < dC->num_dim; i++){
+//         if(dC->dim[i] != dB[i] || dC->dim[i] != dA->dim[i]){
+//             printf("dimention does not match.\n");
+//             return NULL;
 //         }
-
-//         __syncthreads();
 //     }
 
-//     if (row < M && col < N) {
-//         if (bias)
-//             tmp = tmp + bias[col];
-//         if(big_A_True)
-//             C[matIdx_A *(M*N) + row * N + col] = tmp;
-//         else
-//             C[matIdx_B *(M*N) + row * N + col] = tmp;
+//     if(dC->device_type){
+
+//     }else{
+
 //     }
+//     return dC;
 // }

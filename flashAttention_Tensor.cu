@@ -4,66 +4,56 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include "easy_tensor.h"
+#include "MHA.h"
 #include<string.h>
-#define MODEL_DIM 16
 
-
-Tensor* copyTensorfromFILE(Tensor* dst, char* file_name){
-    char f_name[50] = "./pre_weights/";
-    for(int i=0; file_name[i]; i++){
-        f_name[i+14] = file_name[i];
-        f_name[i+15] = 0;
-    }
-    
-    FILE *file = fopen(f_name, "rb");
-    if (!file) {
-        printf("Error opening file\n");
-        return NULL;
-    }
-
-    size_t num_elements = fread(dst->T, sizeof(float), dst->dim[0]*dst->stride[0], file);
-    if (num_elements != dst->dim[0]*dst->stride[0]) {
-        printf("Error reading file\n");
-        return NULL;
-    }
-
-    fclose(file);
-
-    return dst;
-}
-
-
-
-
-Tensor* Attention_Naive(Tensor *dO, Tensor *dX, Tensor *Wqkv, Tensor* QKV, int model_dim){
-    //QKV matmul
-    QKV = matmul(QKV, dX, Wqkv);
-
-    return dO;
-}
 
 int main(){
-    int batch_size = 4;
-    int num_head = 12;
-    int num_Token = 14*14;
-    int embedding_dim = 768;
-    int hidden_dim = 64;
-
-    int input_dim[] = {batch_size, 1, num_Token, embedding_dim};
-    int qkv_weight_dim[] = {1, embedding_dim, num_head * 3 * hidden_dim};
-    int QKV_dim[] = {batch_size, 1, num_Token, num_head * 3 * hidden_dim};
-    
+    char input_dim[] = "4 196 768";
+    // char QKV_dim[] = "3 196 2304";
     //pretrained weight initialization
-    Tensor* W = mallocTensor(qkv_weight_dim, 3, 0);
-    W = copyTensorfromFILE(W, "qkv_W.bin");
-
-    Tensor* input = mallocTensor(input_dim, 4, 1);
-    Tensor* Wqkv = mallocTensor(qkv_weight_dim, 3, 1);
-    Tensor* QKV = mallocTensor(QKV_dim, 4, 1);
-    
     
 
+    //dummy input
+    Tensor* input = makeTensor(input_dim, 0);
+    input = copyTensorfromFILE(input, "dummy_input_4_196_768.bin");
+    printf("=======input=======\n");
+    // freeTensor(printTensor(makeSubTensor(input, "0 0 0", "8 8")));
+
+    //input to device
+    Tensor*dInput = copyTensor(makeTensorbyShape(input, 1), input);
+
+
+    //MHA_block0 FILE copy
+    Tensor **MHA_block0 = makeMHABlock(0);
+
+    MHA_block0 = copyMHABlockfromFILE(MHA_block0, "block_0.bin");
+
+    Tensor**dMHA_block0 = copyMHABlock(makeMHABlock(1), MHA_block0);
+
+    Tensor* dQKV = matmul_bias(makeTensor("4 196 2304", 1),dInput, dMHA_block0[0], dMHA_block0[1], 0);
+
+
+
+    //dQKV check
+    // Tensor* dd = copyTensor(makeTensorbyShape(dQKV, 0),dQKV);
+    // freeTensor(printTensor(makeSubTensor(dd, "2 0 64", "8 8")));
+
+    ///////ATTNTN////////
+    Tensor* O = makeTensor("4 196 768", 1);
+    
+    flashAttention_MHA(O, dQKV);
+
+    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "1 0 0","8 16")));
+    
+    // infoTensor(dQKV);
+    
+    freeMHABlock(MHA_block0);
+    freeMHABlock(dMHA_block0);
+    freeTensor(input);
 }
+
+
 
 
 // __global__ void flashAttention_(float * dO, float *dQ, float *dK, float *dV, float *dM, float *dL, int num_Token, int model_Dim){
