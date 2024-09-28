@@ -3,7 +3,7 @@
 #include<float.h>
 #include <curand.h>
 #include <curand_kernel.h>
-#include "easy_tensor.h"
+#include "./Easy_Tensor/easy_tensor.h"
 
 #include "MHA.h"
 #include<string.h>
