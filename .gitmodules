@@ -1,0 +1,3 @@
+[submodule "Easy_Tensor"]
+	path = Easy_Tensor
+	url = https://github.com/kylekim00/Easy_Tensor.git
