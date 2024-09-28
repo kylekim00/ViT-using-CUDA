@@ -1,0 +1,309 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<float.h>
+#include <curand.h>
+#include <curand_kernel.h>
+#include "easy_tensor.h"
+
+#include "MHA.h"
+#include<string.h>
+
+
+//그저 flashAttention에 최적화된 형태로 만드는 것이다. 지금은.
+
+
+//BLOCK
+//QKV(768 2304) PROJ(768 768) MLP(768 3072) MLP(3072 768)
+Tensor** makeMHABlock(int device_type){
+    Tensor** newBlock = (Tensor**)malloc(sizeof(Tensor*) * 8);
+
+    newBlock[0] = makeTensor("768 2304", device_type);  // QKV(768 2304)
+    newBlock[1] = makeTensor("2304", device_type);       // QKV bias
+
+    newBlock[2] = makeTensor("768 768", device_type);   // Linear Projection after concat (768 768)
+    newBlock[3] = makeTensor("768", device_type);       // Proj bias
+
+    newBlock[4] = makeTensor("768 3072", device_type);  // MLP1 (768 3072)
+    newBlock[5] = makeTensor("3072", device_type);      // MLP1 bias
+
+    newBlock[6] = makeTensor("3072 768", device_type);  // MLP2 (3072 768)
+    newBlock[7] = makeTensor("768", device_type);       // MLP2 bias
+
+    return newBlock;
+}
+
+
+
+void freeMHABlock(Tensor** block){
+    for(int i=0; i < 8; i++)
+        freeTensor(block[i]);
+    free(block);
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+Tensor** copyMHABlockfromFILE(Tensor** block, const char* file_name){
+    
+    char f_name[50] = "./pre_weights/";
+    for(int i=0; file_name[i]; i++){
+        f_name[i+14] = file_name[i];
+        f_name[i+15] = 0;
+    }
+    
+    FILE *file = fopen(f_name, "rb");
+    if (!file) {
+        printf("Error opening file\n");
+        return NULL;
+    }
+
+    size_t num_elements = fread(block[0]->T, sizeof(float), block[0]->sizeTensor, file);
+    if (num_elements != block[0]->sizeTensor) {
+        printf("Error reading file\n");
+        return NULL;
+    }
+
+    for(int i=1; i < 8; i++){
+    
+        num_elements = fread(block[i]->T, sizeof(float), block[i]->sizeTensor, file);
+        if (num_elements != block[i]->sizeTensor) {
+            printf("Error reading file\n");
+            return NULL;
+        }
+    }
+
+    fclose(file);
+
+    return block;
+}
+
+Tensor** copyMHABlock(Tensor** dst, Tensor** src){
+    if(dst == NULL || src == NULL){
+        printf("no block.\n");
+        return NULL;
+    }
+    for(int i=0; i < 8; i++){
+        copyTensor(dst[i], src[i]);
+    }
+    return dst;
+}
+
+Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name){
+    char f_name[50] = "./pre_weights/";
+    for(int i=0; file_name[i]; i++){
+        f_name[i+14] = file_name[i];
+        f_name[i+15] = 0;
+    }
+    
+    FILE *file = fopen(f_name, "rb");
+    if (!file) {
+        printf("Error opening file\n");
+        return NULL;
+    }
+
+    size_t num_elements = fread(dst->T, sizeof(float), dst->dim[0]*dst->stride[0], file);
+    if (num_elements != dst->dim[0]*dst->stride[0]) {
+        printf("Error reading file\n");
+        return NULL;
+    }
+
+    fclose(file);
+
+    return dst;
+}
+
+//for FLASH ATTENTION
+#define HIDDEN_DIM 64 // QKV = head * hidden dim * 3
+#define ATTN_TILE_SIZE 8 //GPU 블럭 크기
+
+// 일단 8로 tile을 맞춰준다고 생각하고 진행한다. 768%8=0, 2304%8=0
+
+__global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQKV 4 196 2304 
+    __shared__ float Q[ATTN_TILE_SIZE][HIDDEN_DIM];
+    // __shared__ float KV[ATTN_TILE_SIZE * HIDDEN_DIM];
+    __shared__ float KV[ATTN_TILE_SIZE][HIDDEN_DIM];
+    __shared__ float O[ATTN_TILE_SIZE][HIDDEN_DIM];
+
+    __shared__ float SP[ATTN_TILE_SIZE][ATTN_TILE_SIZE];
+    __shared__ float l[ATTN_TILE_SIZE];
+    __shared__ float m[ATTN_TILE_SIZE];
+    __shared__ float tmp_max[ATTN_TILE_SIZE];
+    
+
+    //shared mem initialization.
+    int row = blockDim.y * blockIdx.y + threadIdx.y;
+    int col = blockDim.x * blockIdx.x + threadIdx.x;
+    int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM);
+
+    int z_batch = blockIdx.z / num_of_head; //batch_Idx
+    int z_head = blockIdx.z % num_of_head;  //head_Idx
+    
+    for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
+        O[threadIdx.y][threadIdx.x + i] = 0;
+    }
+
+    m[threadIdx.y] = - __FLT_MAX__;
+    l[threadIdx.y] = 0;
+    __syncthreads();
+
+    
+    //if(row && col) 안할거임. 왜냐, 시간문제 걸리니까 일단 배수인 것으로 하고 할거임.
+    //196이 8로 나누어 떨어지지 않기 때문에 해야할듯....
+    
+    //Q init
+    if(row < dQKV_dim[1]){
+        for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
+            Q[threadIdx.y][i+threadIdx.x] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + row * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM*3/*headdim*/) + col + i];//여기 3은 QKV 3.
+        }
+    }else{
+        for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
+                Q[threadIdx.y][i+threadIdx.x] = 0;
+        }
+    }
+    __syncthreads();
+
+
+    float tmp;
+    
+    for(int iter=0; iter < dQKV_dim[1]; iter+= ATTN_TILE_SIZE){// PATCH_SIZE를 이제부터 쭉 돌거임.
+
+        //load K
+        if(row < dQKV_dim[1]){
+            for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
+                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM/*k*/ + col + i];
+            }
+        }else{
+            for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
+                KV[threadIdx.y][threadIdx.x+i] = 0;
+            }
+        }
+        __syncthreads();
+        
+        //QK matmul
+        tmp = 0;
+        for(int i=0; i < HIDDEN_DIM; i++){
+            tmp += Q[threadIdx.y][i] * KV[threadIdx.x][i];
+        }
+        ////////////////////////////////////////////////////////////////////////////////////
+        //max값을 위한 접근을 위한 SP. 이거는 직접적인 ram부분 접근이 아니기 때문에 굳이 row를 막아줄 필요는 없다.
+        SP[threadIdx.y][threadIdx.x] = tmp;
+        __syncthreads();
+        // if(row == 5 && col == 0 && iter==0 && blockIdx.z == 0){
+        //     printf("tmp : %f\n", tmp);
+        // }
+
+        if(row ==0 && col==0 && blockIdx.z == 0 && iter== 0){
+            printf("+++++++++++++++++++++++++++++++\n");
+            for(int i=0; i < ATTN_TILE_SIZE; i++){
+                for(int j=0; j < ATTN_TILE_SIZE; j++){
+                    printf("%.02f\t", SP[i][j]);
+                }
+                printf("\n");
+            }
+        }
+
+        // rowMax(최신 max값을 tmp_max에 저장.)
+        if(threadIdx.x== 0){//tmp_max[] -> KV[0][]
+            KV[0][threadIdx.y] = m[threadIdx.y];//-
+            for(int i=0; i < ATTN_TILE_SIZE; i++){
+                if(SP[threadIdx.y][i] > KV[0][threadIdx.y])//-
+                    KV[0][threadIdx.y] = SP[threadIdx.y][i];//-
+            }
+        }
+        __syncthreads();
+
+        if(row ==0 && col==0 && blockIdx.z == 0 && iter== 0){
+            printf("+++++++++++++++++++++++++++++++\n");
+
+            for(int i=0; i < ATTN_TILE_SIZE; i++){
+                for(int j=0; j < ATTN_TILE_SIZE; j++){
+                    printf("%.02f\t", SP[i][j]);
+                }
+                printf("\n");
+            }
+
+        }
+        //tmp 계속 QK값 담고있음.
+        //물결P 구하기
+        float r_max = (KV[0][threadIdx.y] > m[threadIdx.y])? KV[0][threadIdx.y] : m[threadIdx.y];//여기서부터 tmp_max는 필요 없게 된다.//-
+
+        SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);//rowsum을 구하기 위한 메모리
+        __syncthreads();
+
+
+
+        //////////////rowsum & sum 계산///////////////
+        if(threadIdx.x == 0){
+            int tmp_l = 0;
+            for(int i=0; i < ATTN_TILE_SIZE; i++){
+                tmp_l += SP[threadIdx.y][i];
+            }
+
+            l[threadIdx.y] = expf(l[threadIdx.y] - r_max) * l[threadIdx.y] + tmp_l;
+        }
+        __syncthreads();
+
+
+        //load V
+        if(row < dQKV_dim[1]){
+            for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
+                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM*2/*V*/ + col + i];
+            }
+        }else{
+            for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
+                KV[threadIdx.y][threadIdx.x+i] = 0;
+            }
+        }
+        __syncthreads();
+
+        
+
+        
+        for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
+            //SVt matmul
+            tmp = 0;
+            for(int j=0; j < HIDDEN_DIM; j++){
+                tmp += SP[threadIdx.y][j] * KV[j][threadIdx.x + i];
+            }
+
+            //diag(l) O 곱해주기
+            tmp += expf(m[threadIdx.y] - r_max) * O[threadIdx.y][threadIdx.x + i];
+            __syncthreads();
+
+            // O[threadIdx.y][threadIdx.x + i] = tmp;////////////////
+
+            __syncthreads();
+        }
+
+        m[threadIdx.y] = r_max;
+        __syncthreads();
+
+
+
+
+    }
+
+    //내보내기
+    if(row < dQKV_dim[1]){
+        for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
+            Out[z_batch * dQKV_dim[1] * HIDDEN_DIM/* O matdim*/ + row * HIDDEN_DIM/*rowdim*/ + col + i] = O[threadIdx.y][threadIdx.x + i] * l[threadIdx.y];
+        }
+    }
+}
+
+
+Tensor* flashAttention_MHA(Tensor* O, Tensor* dQKV){
+    if(!O||!dQKV){
+        printf("no Tensor\n");
+        return NULL;
+    }
+    if(O->device_type != dQKV->device_type){
+        printf("Two matrices on different device.\n");
+        return NULL;
+    }
+
+    cudaSetDevice(dQKV->device_type-1);
+    dim3 dimGrid(1, (dQKV->dim[1] + ATTN_TILE_SIZE -1) / ATTN_TILE_SIZE, dQKV->dim[0] * dQKV->dim[2]/(3 * HIDDEN_DIM)); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
+    dim3 dimBlock(ATTN_TILE_SIZE, ATTN_TILE_SIZE);
+    flashAttention_MHA_<<<dimGrid, dimBlock>>>(O->T, dQKV->T, dQKV->d_dim_stride);
+    return O;
+}
