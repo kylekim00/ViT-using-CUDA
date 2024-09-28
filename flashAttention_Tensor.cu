@@ -42,11 +42,18 @@ int main(){
     ///////ATTNTN////////
 
     Tensor* O = makeTensor("4 196 768", 1);
-    
+    Tensor* O_norm = makeTensor("4 196 768", 1);
     flashAttention_MHA(O, dQKV);
+    for(int i=0; )
+    flashAttention_MHA(O, O_norm);
 
     // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 0","8 16")));
     freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "1 0 0","8 16")));
+
+
+    
+
+
     
     // infoTensor(dQKV);
     freeTensor(O);
