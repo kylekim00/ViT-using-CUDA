@@ -14,8 +14,10 @@
 
 //BLOCK
 //QKV(768 2304) PROJ(768 768) MLP(768 3072) MLP(3072 768)
+#define NUM_OF_TENSORS_IN_MHABLOCK 8
+
 Tensor** makeMHABlock(int device_type){
-    Tensor** newBlock = (Tensor**)malloc(sizeof(Tensor*) * 8);
+    Tensor** newBlock = (Tensor**)malloc(sizeof(Tensor*) * NUM_OF_TENSORS_IN_MHABLOCK);
 
     newBlock[0] = makeTensor("768 2304", device_type);  // QKV(768 2304)
     newBlock[1] = makeTensor("2304", device_type);       // QKV bias
@@ -35,7 +37,7 @@ Tensor** makeMHABlock(int device_type){
 
 
 void freeMHABlock(Tensor** block){
-    for(int i=0; i < 8; i++)
+    for(int i=0; i < NUM_OF_TENSORS_IN_MHABLOCK; i++)
         freeTensor(block[i]);
     free(block);
 }
@@ -272,17 +274,17 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
             O[threadIdx.y][threadIdx.x + i] = tmp;
             __syncthreads();
             ////메모리 체크/////
-            if(row ==0 && col == 0 && blockIdx.z==0 && /*iter ==0 * ATTN_TILE_SIZE &&*/ i==0){
-                printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
-                for(int i=0; i < ATTN_TILE_SIZE; i++){
-                    for(int j=0; j < ATTN_TILE_SIZE; j++){
-                        printf("%0.2f\t", O[i][j]);
-                    }printf("\n");
-                }
+            // if(row ==0 && col == 0 && blockIdx.z==0 && /*iter ==0 * ATTN_TILE_SIZE &&*/ i==0){
+            //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
+            //     for(int i=0; i < ATTN_TILE_SIZE; i++){
+            //         for(int j=0; j < ATTN_TILE_SIZE; j++){
+            //             printf("%0.2f\t", O[i][j]);
+            //         }printf("\n");
+            //     }
 
-                // printf("<blockIdx:[%d %d]>O : %f\n",z_batch,z_head, tmp);
-            }
-            __syncthreads();
+            //     // printf("<blockIdx:[%d %d]>O : %f\n",z_batch,z_head, tmp);
+            // }
+            // __syncthreads();
         }
 
         

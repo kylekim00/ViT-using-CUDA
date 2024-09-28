@@ -23,9 +23,10 @@ Tensor *mallocTensor(int *dim, int num_dim, int device_type){
     int device;
     cudaGetDeviceCount(&device);
     if(device_type > device){       //count device and check the boundary
-        printf("DEVICE NUM %d NOT AVAILABLE\n", device_type);
+        printf("mallocTensor : DEVICE NUM %d NOT AVAILABLE\n", device_type);
         return NULL;
     }
+    
 
     int sizeTensor;                 //check the size of whole Tensor
 
@@ -106,10 +107,9 @@ Tensor* makeTensor(const char dim[], int device_type) {  // Use `const char[]`
 
     // If no dimensions were parsed, return NULL or handle the error appropriately
     if (num_dim == 0) {
-        printf("No valid dimensions were parsed.\n");
+        printf("makeTensor : No valid dimensions were parsed.\n");
         return NULL;
     }
-
     // Call makeTensor with the parsed dimensions
     return mallocTensor(dim_, num_dim, device_type);
 }
@@ -117,7 +117,7 @@ Tensor* makeTensor(const char dim[], int device_type) {  // Use `const char[]`
 
 Tensor* makeTensorbyShape(Tensor* src, int device_type){
     if(!src){
-        printf("SouRCe is vacant.\n");
+        printf("makeTensorbyShape : SouRCe is vacant.\n");
         return NULL;
     }
     // if(src->isSub){
@@ -130,11 +130,11 @@ Tensor* makeTensorbyShape(Tensor* src, int device_type){
 
 Tensor* mallocSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
     if(src->isSub){
-        printf("Cant light copy subTensor\n");
+        printf("mallocSubTensor : Can't light copy subTensor\n");
         return NULL;
     }
     if(src->num_dim < num_dim){
-        printf("SouRCe num_dim not that big\n");
+        printf("mallocSubTensor : SouRCe num_dim not that big\n");
         return NULL;
     }
 
@@ -144,7 +144,7 @@ Tensor* mallocSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
 
     for(int i=0; i < src->num_dim; i++){                            //This is where you set the starting point
         if(src->dim[i] <= start_point[i]){
-            printf("starting point invalid\n");
+            printf("mallocSubTensor : starting point invalid.\n");
             return NULL;
         }
         sp += start_point[i] * src->stride[i];
@@ -152,7 +152,7 @@ Tensor* mallocSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
 
     for(int i=0; i < num_dim; i++){                                 //This is where tou check the size of the dim 
         if(src->dim[i + cont] < start_point[i+cont] + dim[i]){
-            printf("SouRCe not that big.\n");
+            printf("mallocSubTensor : SouRCe not that big.\n");
             return NULL;
         }
     }
@@ -187,7 +187,10 @@ Tensor* mallocSubTensor(Tensor* src, int* start_point, int* dim, int num_dim){
 }
 
 Tensor* makeSubTensor(Tensor* src, const char start_point[], const char dim[]){
-
+    if(!src){
+        printf("makeSubTensor : no SouRCe Tensor.\n");
+        return NULL;
+    }
     int start_point_[MAX_NUM_DIM];  // Array to store dimensions
     int num_sp = 0;        // Counter for the number of dimensions
 
@@ -235,7 +238,7 @@ Tensor* makeSubTensor(Tensor* src, const char start_point[], const char dim[]){
 
     // If no dimensions were parsed, return NULL or handle the error appropriately
     if (num_sp != src->num_dim) {
-        printf("not an appropriate dimention number for starting point");
+        printf("makeSubTensor : not an appropriate dimension number for starting point");
         return NULL;
     }
 
@@ -287,7 +290,7 @@ Tensor* makeSubTensor(Tensor* src, const char start_point[], const char dim[]){
 
     // If no dimensions were parsed, return NULL or handle the error appropriately
     if (num_dim == 0) {
-        printf("No valid dimensions were parsed.\n");
+        printf("makeSubTensor : No valid dimensions were parsed.\n");
         return NULL;
     }
 
@@ -298,18 +301,18 @@ Tensor* makeSubTensor(Tensor* src, const char start_point[], const char dim[]){
 
 void freeSubTensor(Tensor* subTen){
     if(!subTen->isSub){
-        printf("This is Not a SubTensor.\n");
+        printf("freeSubTensor : This is Not a SubTensor.\n");
         return;
     }
     if(subTen==NULL){
-        printf("NO TENSOR IN POINTER.\n");
+        printf("freeSubTensor : NO TENSOR IN POINTER.\n");
         return;
     }else{
         if(subTen->device_type){
             cudaSetDevice(subTen->device_type - 1);
             cudaError_t err = cudaFree(subTen->d_dim_stride);
             if (err != cudaSuccess) {
-                fprintf(stderr, "CUDA Error: %s\n", cudaGetErrorString(err));
+                fprintf(stderr, "freeSubTensor CUDA Error: %s\n", cudaGetErrorString(err));
             }
         }
         free(subTen->dim);         //didn't malloc ten->stride from the first place :P
@@ -318,7 +321,7 @@ void freeSubTensor(Tensor* subTen){
 }
 void freeTensor(Tensor *ten){
     if(ten==NULL){
-        printf("NO TENSOR IN POINTER.\n");
+        printf("freeTensor : NO TENSOR IN POINTER.\n");
         return;
     }
     if(ten->isSub){
@@ -329,11 +332,11 @@ void freeTensor(Tensor *ten){
             cudaSetDevice(ten->device_type - 1);
             cudaError_t err = cudaFree(ten->T);
             if (err != cudaSuccess) {
-                fprintf(stderr, "CUDA Error: %s\n", cudaGetErrorString(err));
+                fprintf(stderr, "freeTensor CUDA Error: %s\n", cudaGetErrorString(err));
             }
             err = cudaFree(ten->d_dim_stride);
             if (err != cudaSuccess) {
-                fprintf(stderr, "CUDA Error: %s\n", cudaGetErrorString(err));
+                fprintf(stderr, "freeTensor CUDA Error: %s\n", cudaGetErrorString(err));
             }
         }else{
             free(ten->T);
@@ -345,12 +348,16 @@ void freeTensor(Tensor *ten){
 
 //=================================print================================
 
-void infoTensor(Tensor *ten){
+Tensor* infoTensor(Tensor *ten){
+    if(!ten){
+        printf("infoTensor : Tensor is NULL.\n");
+        return NULL;
+    }
     printf("\n=========Tensor===========\n");
     if(ten->isSub){
         printf("===SUBTENSOR===\n");
     }
-    printf("DIMENTION : [");
+    printf("DIMENSION : [");
     for(int i=0; i < ten->num_dim-1; i++){
         printf("%d ", ten->dim[i]);
     }
@@ -367,11 +374,12 @@ void infoTensor(Tensor *ten){
         printf("CPU");
     }
     printf("\n==========================\n");
+    return ten;
 }
 
 Tensor* printTensor(Tensor *ten){
     if(!ten){
-        printf("No tensor.\n");
+        printf("printTensor : No tensor.\n");
         return NULL;
     }
     if(ten->device_type){
@@ -383,7 +391,7 @@ Tensor* printTensor(Tensor *ten){
     if(ten->num_dim == 1){
         printf("[ %d ]\n", ten->dim[0]);
         for(int i=0; i < ten->dim[0]; i+=ten->stride[0]){
-            printf("%.02f\t", ten->T[i]);
+            printf("%.03f\t", ten->T[i]);
         }
         printf("\n");
         return ten;
@@ -392,7 +400,7 @@ Tensor* printTensor(Tensor *ten){
         printf("[ %d %d ]\n", ten->dim[0], ten->dim[1]);
         for(int i=0; i < ten->dim[0]*ten->stride[0]; i+=ten->stride[0]){
             for(int j=0; j < ten->dim[1]*ten->stride[1]; j+=ten->stride[1]){
-                printf("%.02f\t", ten->T[i + j]);
+                printf("%.03f\t", ten->T[i + j]);
                 // printf("%d\t", ten->stride[0]* i + j);
             }
             printf("\n");
@@ -419,7 +427,7 @@ Tensor* printTensor(Tensor *ten){
 
         for(int i=0; i < ten->dim[ten->num_dim-2]*ten->stride[ten->num_dim-2]; i+=ten->stride[ten->num_dim-2]){
             for(int j=0; j < ten->dim[ten->num_dim-1]*ten->stride[ten->num_dim-1]; j+=ten->stride[ten->num_dim-1]){
-                printf("%.02f\t", ten->T[inx + i + j]);
+                printf("%.03f\t", ten->T[inx + i + j]);
                 // printf("%d\t", ten->stride[0]* i + j);
             }
             printf("\n");
@@ -440,20 +448,20 @@ Tensor* printTensor(Tensor *ten){
 
 Tensor* copyTensor(Tensor *dst, Tensor *src){
     if(!dst || !src){
-        printf("No dst or src\n");
+        printf("copyTensor : No dst or src\n");
         return NULL;
     }
     if(dst->isSub||src->isSub){
-        printf("dst or src is subTensor.");
+        printf("copyTensor : dst or src is subTensor.");
         return NULL;
     }
     if(dst->num_dim != src->num_dim){
-        printf("copyMatrix : shape of dst and src doesn't match.\n");
+        printf("copyTensor : shape of dst and src doesn't match.\n");
         return NULL;
     }
     for(int i=0; i < dst->num_dim; i++){
         if(dst->dim[i] != src->dim[i]){
-            printf("copyMatrix : shape of dst and src doesn't match.\n");
+            printf("copyTensor : shape of dst and src doesn't match.\n");
             return NULL;
         }
     }
@@ -495,21 +503,25 @@ __global__ void reshape_(float* dst, float* src, int* dst_dim_stride, int* src_d
 
 
 Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
+    if(!dst || !src){
+        printf("copyReshapeTensor : no Tensor\n");
+        return NULL;
+    }
     if(dst->isSub){
-        printf("dst can't be subMatrix.\n");
+        printf("copyReshapeTensor : dst can't be subMatrix.\n");
         return NULL;
     }
     if(src->device_type != dst->device_type){
-        printf("DEVICE NOT MATCH.\n");
+        printf("copyReshapeTensor : DEVICE NOT MATCH.\n");
         return NULL;
     }
     if(src->num_dim != dst->num_dim){
-        printf("DEVICE NUM_DIM DOES NOT MATCH.\n");
+        printf("copyReshapeTensor : DEVICE NUM_DIM DOES NOT MATCH.\n");
         return NULL;
     }
 
     if(src->sizeTensor != dst->sizeTensor){
-        printf("DEVICE NUM OF ELEMENT DOES NOT MATCH.\n");
+        printf("copyReshapeTensor : DEVICE NUM OF ELEMENT DOES NOT MATCH.\n");
         return NULL;
     }
 
@@ -519,7 +531,7 @@ Tensor* copyReshapeTensor(Tensor* dst, Tensor* src, int* reshape){
         cudaMalloc(&d_tmp_reshape, sizeof(int) * dst->num_dim);
         cudaMemcpy(d_tmp_reshape, reshape, sizeof(int) * dst->num_dim, cudaMemcpyHostToDevice);
         
-        int s_tile_SIZE = tile_SIZE * tile_SIZE * 2;//no special drawbacks in parallel sequence 임
+        int s_tile_SIZE = tile_SIZE * tile_SIZE * 2;//no special drawbacks in parallel sequence, so just put the values into the tiles linearly.
         
         reshape_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, src->T, dst->d_dim_stride, src->d_dim_stride, d_tmp_reshape, src->num_dim, dst->sizeTensor);
         cudaFree(d_tmp_reshape);
@@ -573,32 +585,32 @@ __global__ void transposeCoalesced(float *odata, const float *idata, int dst_row
 
 Tensor* copyTransposeTensor(Tensor* dst, Tensor* src){
     if(dst->device_type != src->device_type){
-        printf("device_type does not match.\n");
+        printf("copyTransposeTensor : device_type does not match.\n");
         return NULL;
     }
     if(dst->num_dim <2){
-        printf("dimention lesser than 2 dimention need no Transpose.\n");
+        printf("copyTransposeTensor : dimension lesser than 2 dimension need no Transpose.\n");
         return NULL;
     }
     if(dst->num_dim != src->num_dim){
-        printf("num_dim does not match.\n");
+        printf("copyTransposeTensor : num_dim does not match.(%d)(%d)\n", dst->num_dim, src->num_dim);
         return NULL;
     }
     
     for(int i=0; i < dst->num_dim - 2; i++){
         if(dst->dim[i] != src->dim[i]){
-            printf("dimension %d does not match.\n", i);
+            printf("copyTransposeTensor : dimension %d does not match.\n", i);
             return NULL;
         }
     }
     if(dst->dim[dst->num_dim - 1] != src->dim[src->num_dim-2] || dst->dim[dst->num_dim - 2] != src->dim[src->num_dim-1]){
-        printf("row and col does not match.\n");
+        printf("copyTransposeTensor : row and col does not match.\n");
         return NULL;
     }
     
 
     if(dst->isSub){
-        printf("dst sub Matrix not allowed\n");
+        printf("copyTransposeTensor : dst sub Matrix not allowed\n");
         return NULL;
     }
     
@@ -707,30 +719,19 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
         __syncthreads();
     }
 
-    // if(row==0 && col==0 && matIdx_C == 0){
-    //     for(int i=0; i < tile_SIZE; i++){
-    //         for(int j=0; j < tile_SIZE; j++){
-    //             printf("%.02f\t", s_a[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    //     printf("\n");
-    //     for(int i=0; i < tile_SIZE; i++){
-    //         for(int j=0; j < tile_SIZE; j++){
-    //             printf("%.02f\t", s_b[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    // }
     // printf("[%d %d] [%d %d]\n", row, col, dimC[num_dim - 2], dimC[num_dim-1]);
+    // if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
+    //     int bias_row = 0;
+    //     if (bias)
+    //         tmp = tmp + bias[(bias_row?row:col)];
+    //     // printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
+    //     C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
+    // }
     if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
-        int bias_row = 0;
         if (bias)
             tmp = tmp + bias[(bias_row?row:col)];
-        // printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
         C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
     }
-
 }
 
 __global__ void compTiledMM_Bbig(float*A, float *B, float *C, float *bias, int *dimA, int *dimB, int *dimC, int little_num_dim, int num_dim, char bias_row){
@@ -792,7 +793,6 @@ for(int i=cont; i < num_dim - 2; i++){      //To matrix
     if (row < dimC[num_dim - 2] && col < dimC[num_dim - 1]) {
         if (bias)
             tmp = tmp + bias[(bias_row?row:col)];
-        // printf("[%d %d %d] [%d %d] : %f\n", matIdx_C,row, col, dimC[num_dim - 2], dimC[num_dim-1], tmp);
         C[matIdx_C * dimC[2*num_dim - 3] + row * dimC[2*num_dim - 2] + col] = tmp;
     }
 
@@ -943,36 +943,41 @@ __global__ void checkmem(float* arr, int len){
 
 Tensor* matmul(Tensor* dC, Tensor* dA, Tensor* dB){
     if(!dC||!dB||!dA){
-        printf("one of Tensor is NULL.\n");
+        printf("matmul : one of Tensor is NULL.\n");
         return NULL;
     }
     if(dC->isSub){
-        printf("The result Matrix can not be a sub Matrix.\n");
+        printf("matmul : The result Matrix can not be a sub Matrix.\n");
         return NULL;
     }
     if(dC->device_type != dB->device_type || dB->device_type != dA->device_type){
-        printf("Three matrices are in different device.");
+        printf("matmul : Three matrices are in different device.");
         return NULL;
     }
 
     
     if(dC->num_dim <2 || dB->num_dim <2 || dA->num_dim <2){
-        printf("One of three Tensor has less than 2 dimentions.(Try to use matmul().)\n");
+        printf("matmul : One of three Tensor has less than 2 dimensions.(Try to use matmul().)\n");
         return NULL;
     }
     
 
     //2. matrix col and row has to be the same.
     if(dA->dim[dA->num_dim - 1] != dB->dim[dB->num_dim - 2]){
-        printf("tensor's row and column does not match.(%d %d)\n", dA->dim[dA->num_dim - 1], dB->dim[dB->num_dim - 2]);
+        printf("matmul : tensor's row and column does not match.(%d %d)\n", dA->dim[dA->num_dim - 1], dB->dim[dB->num_dim - 2]);
         return NULL;
     }
 
     if(dA->dim[dA->num_dim - 2] != dC->dim[dC->num_dim - 2] || dB->dim[dB->num_dim - 1] != dC->dim[dC->num_dim - 1]){
-        printf("tensor's row and column does not match.\n");
+        printf("matmul : tensor's row and column does not match.(%d %d))\n", dC->dim[dC->num_dim - 2], dC->dim[dC->num_dim - 1]);
         return NULL;
     }
-    
+    if(dA->device_type == 0){
+        printf("matmul : device type CPU currently not allowed. \n");
+        return NULL;
+    }
+
+
     Tensor* bigTensor, *smallTensor;
 
     if(dA->num_dim >= dB->num_dim){
@@ -985,9 +990,10 @@ Tensor* matmul(Tensor* dC, Tensor* dA, Tensor* dB){
 
 
     if(bigTensor->num_dim != dC->num_dim){
-        printf("dC num_dim has to have same num_dim as bigger Tensor.\n");
+        printf("matmul : dC num_dim has to have same num_dim as bigger Tensor.\n");
         return NULL;
     }
+
 
     if(bigTensor->num_dim ==2){
         cudaSetDevice(bigTensor->device_type-1);
@@ -1000,7 +1006,7 @@ Tensor* matmul(Tensor* dC, Tensor* dA, Tensor* dB){
         //num_dim이 모두 2보다 클 때
         for(int i=0; i < bigTensor->num_dim - 2; i++){
             if(bigTensor->dim[i] != dC->dim[i] && bigTensor->dim[i] != 1){
-                printf("%d dimention of Tensor(big) does not Match.\n", i);
+                printf("matmul : %d dimension of Tensor(big) does not Match.\n", i);
                 return NULL;
             }
         }
@@ -1022,7 +1028,7 @@ Tensor* matmul(Tensor* dC, Tensor* dA, Tensor* dB){
             //1. The tensor has to match if one of them is not 1.
             for(int i=0; i < smallTensor->num_dim - 2; i++){
                 if(smallTensor->dim[i] != dC->dim[i+cont] && smallTensor->dim[i] != 1){
-                    printf("%d dimention of Tensor(small) does not Match.\n", i);
+                    printf("matmul : %d dimension of Tensor(small) does not Match.\n", i);
                     return NULL;
                 }
             }
@@ -1047,46 +1053,54 @@ Tensor* matmul(Tensor* dC, Tensor* dA, Tensor* dB){
 }
 
 
-Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_bias){
+Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char rowwise_bias){
     if(!dC||!dB||!dA||!dbias){
-        printf("one of Tensor is NULL.\n");
+        printf("matmul_bias : one of Tensor is NULL.\n");
         return NULL;
     }
     if(dC->isSub){
-        printf("The result Matrix can not be a sub Matrix.\n");
+        printf("matmul_bias : The result Matrix can not be a sub Matrix.\n");
         return NULL;
     }
     if(dC->device_type != dB->device_type || dB->device_type != dA->device_type || dbias->device_type != dA->device_type){
-        printf("Four matrices are in different device.");
+        printf("matmul_bias : Four matrices are in different device.");
         return NULL;
     }
 
     
     if(dC->num_dim <2 || dB->num_dim <2 || dA->num_dim <2){
-        printf("One of three Tensor has less than 2 dimentions.(Try to use matmul().)\n");
+        printf("matmul_bias : One of three Tensor has less than 2 dimensions.(Try to use matmul().)\n");
         return NULL;
     }
     
     if(dbias->num_dim != 1){
         if(dbias->num_dim != 2 || dbias->dim[1] != dC->dim[dC->num_dim - 1]){
-            printf("bias not an appropriate dimention.\n");
+            printf("matmul_bias : bias not an appropriate dimension.\n");
             return NULL;
         }
     }
 
-    if(dbias->dim[dbias->num_dim - 1] != dB->dim[dB->num_dim - 1]){
-        printf("Bias size does not fit to column(dB's last dim).\n");
+    if(!rowwise_bias && dbias->dim[dbias->num_dim - 1] != dC->dim[dC->num_dim - 1]){
+        printf("matmul_bias : Bias size does not fit to size of row(dB's last dim).\n");
         return NULL;
     }
-
+    if(rowwise_bias && dbias->dim[dbias->num_dim - 1] != dC->dim[dC->num_dim - 2]){
+        printf("matmul_bias : Bias size does not fit to size of column(dA's second last dim).\n");
+        return NULL;
+    }
     //2. matrix col and row has to be the same.
     if(dA->dim[dA->num_dim - 1] != dB->dim[dB->num_dim - 2]){
-        printf("tensor's row and column does not match.(%d %d)\n", dA->dim[dA->num_dim - 1], dB->dim[dB->num_dim - 2]);
+        printf("matmul_bias : tensor's row and column does not match.(%d %d)\n", dA->dim[dA->num_dim - 1], dB->dim[dB->num_dim - 2]);
         return NULL;
     }
 
     if(dA->dim[dA->num_dim - 2] != dC->dim[dC->num_dim - 2] || dB->dim[dB->num_dim - 1] != dC->dim[dC->num_dim - 1]){
-        printf("tensor's row and column does not match.\n");
+        printf("matmul_bias : tensor's row and column does not match.\n");
+        return NULL;
+    }
+
+    if(dA->device_type == 0){
+        printf("matmul : device type CPU currently not allowed. \n");
         return NULL;
     }
     
@@ -1102,7 +1116,7 @@ Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_
 
 
     if(bigTensor->num_dim != dC->num_dim){
-        printf("dC num_dim has to have same num_dim as bigger Tensor.\n");
+        printf("matmul_bias : dC num_dim has to have same num_dim as bigger Tensor.\n");
         return NULL;
     }
 
@@ -1110,14 +1124,14 @@ Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_
         cudaSetDevice(bigTensor->device_type-1);
         dim3 dimGrid((dB->dim[dB->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dA->dim[dA->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, 1); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
         dim3 dimBlock(tile_SIZE, tile_SIZE);
-        tiledMM_2d<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->dim[0], dB->dim[1], dA->dim[1], dA->stride[0], dB->stride[0], row_bias);
+        tiledMM_2d<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->dim[0], dB->dim[1], dA->dim[1], dA->stride[0], dB->stride[0], rowwise_bias);
     
     }
     else{
         //num_dim이 모두 2보다 클 때
         for(int i=0; i < bigTensor->num_dim - 2; i++){
             if(bigTensor->dim[i] != dC->dim[i] && bigTensor->dim[i] != 1){
-                printf("%d dimention of Tensor(big) does not Match.\n", i);
+                printf("matmul_bias : %d dimension of Tensor(big) does not Match.\n", i);
                 return NULL;
             }
         }
@@ -1128,9 +1142,9 @@ Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_
             dim3 dimGrid((dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[bigTensor->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
             dim3 dimBlock(tile_SIZE, tile_SIZE);
             if(dA == bigTensor)
-                tiledMM_Half_bigA<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, row_bias);
+                tiledMM_Half_bigA<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, rowwise_bias);
             else
-                tiledMM_Half_bigB<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, row_bias);
+                tiledMM_Half_bigB<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->stride[dC->num_dim - 3], dA->num_dim, dB->num_dim, rowwise_bias);
 
         }else{
 
@@ -1139,7 +1153,7 @@ Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_
             //1. The tensor has to match if one of them is not 1.
             for(int i=0; i < smallTensor->num_dim - 2; i++){
                 if(smallTensor->dim[i] != dC->dim[i+cont] && smallTensor->dim[i] != 1){
-                    printf("%d dimention of Tensor(small) does not Match.\n", i);
+                    printf("matmul_bias : %d dimension of Tensor(small) does not Match.\n", i);
                     return NULL;
                 }
             }
@@ -1148,9 +1162,9 @@ Tensor* matmul_bias(Tensor* dC, Tensor* dA, Tensor* dB, Tensor* dbias, char row_
             dim3 dimGrid((dC->dim[dC->num_dim - 1] + tile_SIZE - 1) / tile_SIZE, (dC->dim[dC->num_dim - 2] + tile_SIZE - 1) / tile_SIZE, dC->sizeTensor / dC->stride[dC->num_dim - 3]); //dim은 4x3x32x32를 matmul하는 경우 12가 들어가게 된다.
             dim3 dimBlock(tile_SIZE, tile_SIZE);
             if(dA == bigTensor)
-                compTiledMM_Abig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, row_bias);
+                compTiledMM_Abig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, rowwise_bias);
             else
-                compTiledMM_Bbig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, row_bias);
+                compTiledMM_Bbig<<<dimGrid, dimBlock>>>(dA->T, dB->T, dC->T, dbias->T, dA->d_dim_stride, dB->d_dim_stride, dC->d_dim_stride, dA->num_dim, dB->num_dim, rowwise_bias);
             
         }
         
@@ -1180,7 +1194,7 @@ __global__ void ReLU(float* T, int sizeTensor){
 
 Tensor* ReLU_inline(Tensor* ten){
     if(!ten){
-        printf("No Tensor.\n");
+        printf("ReLU_inline : No Tensor.\n");
         return NULL;
     }
     if(ten->device_type){
@@ -1197,43 +1211,282 @@ Tensor* ReLU_inline(Tensor* ten){
 
 __global__ void gelu_(float* in, float* out, int len) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-
     if (i < len) {  
-        // Do the actual computation
         out[i] = 0.5 * in[i] * (1.0 + tanh(0.79788456 * (in[i] + 0.044715 * in[i] * in[i] * in[i])));
     }
 }
 
+Tensor* gelu_Tensor(Tensor* ten){
 
-// __global__ void sub_(float* dC, float* dA, float* dB, int len){
-//     int inx = blockDim.x * blockIdx.x + threadIdx.x;
-// }
+    cudaSetDevice(ten->device_type - 1);
+    int s_tile_SIZE = tile_SIZE * tile_SIZE;//no special drawbacks in parallel sequence 임
+    gelu_<<< (ten->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(ten->T, ten->T, ten->sizeTensor);
+    return ten;
+}
 
-// Tensor* subtract_Tensor(Tensor* dC, Tensor* dB, Tensor* dA){
-//     if(!dC || !dA || !dB){
-//         printf("no Tensor\n");
-//         return NULL;
-//     }
-//     if(dC->device_type != dB->device_type && dB->device_type != dA->device_type){
-//         printf("Device type does not match\n");
-//         return NULL;
-//     }
+
+
+
+__global__ void softmax_(float* dst,float* T, int batch, int label_num){//inx는 batch 크기이다. 
+    int inx = blockIdx.x * blockDim.x + threadIdx.x;
+    double tmp;
+    double clip_value = 80;
+    if(inx < batch){
+        float max = -__FLT_MAX__;
+        float sum = 0;
+        for(int i=0; i < label_num; i++){
+           max = T[inx * label_num + i];
+        }
+        for(int i=0; i < label_num; i++){
+            tmp = T[inx * label_num + i]-max;
+            if(tmp > clip_value)
+                tmp = clip_value;
+            else if(tmp < -clip_value)
+                tmp = -clip_value;
+            sum +=expf(tmp);
+        }
+        for(int i=0; i < label_num; i++){
+            tmp = T[inx * label_num + i]-max;
+            if(tmp > clip_value)
+                tmp = clip_value;
+            else if(tmp < -clip_value)
+                tmp = -clip_value;
+            dst[inx * label_num + i] = expf(tmp)/sum;
+        }
+    }
+    __syncthreads();
+}
+
+Tensor* softMax(Tensor* dst, Tensor* src){
+    if(!src ||!dst){
+        printf("no Tensor.\n");
+        return NULL;
+    }
+    if(!dst->device_type != !src->device_type){
+        printf("Two Tensors ar in different device.\n");
+    }
+
+    if(src->device_type){
+        cudaSetDevice(src->device_type - 1);
+        int s_tile_SIZE = tile_SIZE * tile_SIZE; //no special drawbacks in parallel sequence 임
+
+        softmax_<<< (dst->dim[0] + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, src->T, src->dim[0], src->dim[1]);
+    }else{
+        for(int i=0; i < src->dim[0]; i++){
+            float max =  -__FLT_MAX__;
+            float sum = 0;
+            for(int j=0; j < src->dim[1]; j++){
+                if(src->T[i * src->stride[0] + j] > max)
+                    max = src->T[i * src->stride[0]];
+            }
+            for(int j=0; j < src->dim[1]; j++){
+                sum += expf(src->T[i * src->stride[0] + j]-max);
+            }
+            for(int j=0; j < src->dim[1]; j++){
+                dst->T[i * dst->stride[0] + j] = expf(src->T[i * src->stride[0] + j]-max)/sum;
+            }
+        }
+
+    }
+    return dst;
+}
+
+
+
+__global__ void elementwise_add_(float* dC, float* dA, float* dB, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len)
+        dC[inx] = dA[inx] + dB[inx];
+}
+__global__ void elementwise_sub_(float* dC, float* dA, float* dB, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len)
+        dC[inx] = dA[inx] - dB[inx];
+}
+__global__ void elementwise_mult_(float* dC, float* dA, float* dB, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len)
+        dC[inx] = dA[inx] + dB[inx];
+}
+
+__global__ void elementwise_mask_(float* dC, float* dA, float* dB, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len)
+        dC[inx] = dB[inx]? dA[inx] : 0;
+}
+
+
+Tensor* elementWise_Tensor(Tensor* dC, Tensor* dA, char operand, Tensor* dB){ 
+    if(!dC || !dA || !dB){
+        printf("no Tensor\n");
+        return NULL;
+    }
+    if(dC->device_type != dB->device_type || dB->device_type != dA->device_type){
+        printf("Device type does not match\n");
+        return NULL;
+    }
     
-//     if(dC->num_dim != dB->num_dim || dC->num_dim != dA->num_dim){
-//         printf("Number of dim does not match.\n");
-//         return NULL;
-//     }
-//     for(int i=0; i < dC->num_dim; i++){
-//         if(dC->dim[i] != dB[i] || dC->dim[i] != dA->dim[i]){
-//             printf("dimention does not match.\n");
-//             return NULL;
-//         }
-//     }
+    if(dC->num_dim != dB->num_dim || dC->num_dim != dA->num_dim){
+        printf("Number of dim does not match.\n");
+        return NULL;
+    }
+    for(int i=0; i < dC->num_dim; i++){
+        if(dC->dim[i] != dB->dim[i] || dC->dim[i] != dA->dim[i]){
+            printf("dimension does not match.\n");
+            return NULL;
+        }
+    }
 
-//     if(dC->device_type){
+    if(dC->device_type){
+        cudaSetDevice(dC->device_type - 1);
+        int s_tile_SIZE = tile_SIZE * tile_SIZE;//no special drawbacks in parallel sequence 임
+        if(operand =='+')
+            elementwise_add_<<< (dC->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dC->T, dA->T, dB->T, dC->sizeTensor);
+        else if(operand=='-')
+            elementwise_sub_<<< (dC->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dC->T, dA->T, dB->T, dC->sizeTensor);
+        else if(operand=='*')
+            elementwise_mult_<<< (dC->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dC->T, dA->T, dB->T, dC->sizeTensor);
+        else if(operand=='M'||operand=='m')
+            elementwise_mask_<<< (dC->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dC->T, dA->T, dB->T, dC->sizeTensor);
+        else{
+            printf("not an appropriate operand\n");
+            return NULL;
+        }
+    }else{
+        if(operand =='+'){
+            for(int i=0; i < dC->sizeTensor; i++){
+                dC->T[i] = dA->T[i] + dB->T[i];
+            }
+        }
+        else if(operand=='-'){
+            for(int i=0; i < dC->sizeTensor; i++){
+                dC->T[i] = dA->T[i] - dB->T[i];
+            }
+        }
+        else if(operand=='*'){
+            for(int i=0; i < dC->sizeTensor; i++){
+                dC->T[i] = dA->T[i] * dB->T[i];
+            }
+        }else if(operand=='M' || operand=='m'){
+            for(int i=0; i < dC->sizeTensor; i++){
+                dC->T[i] = (dB->T[i])? dA->T[i] : 0;
+            }
+        }
+        else{
+            printf("not an appropriate operand\n");
+            return NULL;
+        }
+    }
+    return dC;
+}
 
-//     }else{
+__global__ void rowwise_sum_(float* dst, float* src, int row, int col){// 모든 row를 다 더한다. ->col 의 개수만큼의 inx
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < col){
+        float tmp = 0;
+        for(int i=0; i < row; i++){      
+            tmp += src[col * i + inx];
+        }
+        dst[inx] = tmp;
+    }
+}
 
-//     }
-//     return dC;
-// }
+__global__ void colwise_sum_(float* dst, float* src, int row, int col){// 모든 column을 다 더한다. -> row의 개수만큼의 inx
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < row){
+        float tmp = 0;
+        for(int i=0; i < col; i++){
+            tmp += src[col * inx +i];
+        }
+        dst[inx] = tmp;
+    }
+}
+
+
+Tensor* rowcolwise_sum(Tensor*dst, Tensor*src, char axis){
+    if(!dst|| !src){
+        printf("no Tensor.\n");
+        return NULL;
+    }
+    if(dst->device_type != src->device_type){
+        printf("Tensors on different device.\n");
+        return NULL;
+    }
+    if(dst->isSub || src->isSub){
+        printf("This function can not have subTensor.\n");
+    }
+    if(dst->device_type){
+        cudaSetDevice(dst->device_type - 1);
+        int s_tile_SIZE = tile_SIZE * tile_SIZE;
+        if(axis == 0){//rowwise
+            if(src->dim[src->num_dim-1] != dst->sizeTensor){
+                printf("row length and size of a source must have same length.\n");
+                return NULL;
+            }
+            rowwise_sum_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, src->T, src->dim[src->num_dim - 2], dst->sizeTensor);
+        }else if(axis == 1){
+            if(src->dim[src->num_dim-2] != dst->sizeTensor){
+                printf("col length and size of a source must have same length.\n");
+                return NULL;
+            }
+            colwise_sum_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, src->T, dst->sizeTensor, src->dim[src->num_dim-1]);
+        }
+    }else{
+        // if(axis == 0){
+        //     for(int i=0; i < src->dim[src->num_dim-2];i++){
+        //         for(int j=0; j < src->dim[src->num_dim-1];j++){
+        //             dst->T[j] = src->T[i *src->dim[src->num_dim-1]+ j];
+        //         }
+        //     }
+        // }else if(axis==1){
+        //     for(int i=0; i < src->dim[src->num_dim-2];i++){
+        //         for(int j=0; j < src->dim[src->num_dim-1];j++){
+        //             dst->T[i] = src->T[i *src->dim[src->num_dim-1]+ j];
+        //         }
+        //     }
+        // }
+    }
+    return dst;
+}
+
+__global__ void scalar_Tensor_sum_(float *T, float scalar, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len){
+        T[inx] = T[inx] + scalar;
+    }
+}
+__global__ void scalar_Tensor_sub_(float *T, float scalar, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len){
+        T[inx] = -T[inx] + scalar;
+    }
+}
+__global__ void scalar_Tensor_mult_(float *T, float scalar, int len){
+    int inx = blockDim.x * blockIdx.x + threadIdx.x;
+    if(inx < len){
+        T[inx] = T[inx] * scalar;
+    }
+}
+Tensor* scalar_Tensor(Tensor*dst,char operand ,float scalar){
+    if(!dst){
+        printf("no tensor\n");
+        return NULL;
+    }
+    if(dst->device_type){
+        int s_tile_SIZE = tile_SIZE * tile_SIZE;
+        cudaSetDevice(dst->device_type-1);
+        if(operand == '+'){
+            scalar_Tensor_sum_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, scalar, dst->sizeTensor);
+        }else if(operand == '-'){
+            scalar_Tensor_sub_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, scalar, dst->sizeTensor);
+        }else if(operand == '*'){
+            scalar_Tensor_mult_<<< (dst->sizeTensor + s_tile_SIZE - 1)/s_tile_SIZE, s_tile_SIZE >>>(dst->T, scalar, dst->sizeTensor);
+        }else if(operand == '/'){
+            //
+        }else{
+            printf("not an appropriate operand\n");
+        }
+
+    }
+    return dst;
+}
