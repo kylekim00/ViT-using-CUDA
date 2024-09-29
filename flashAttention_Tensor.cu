@@ -25,15 +25,23 @@ int main(){
 
 
     //MHA_block0 FILE copy
+    // Tensor** MHA_BLOCK[12];
+    // for(int i=0; i < 12; i++){
+    //     char str[] = "0_block.bin";
+    //     str[0] += i;
+    //     printf("-\n");
+    //     MHA_BLOCK[i] = makeMHABlock(0);
+    //     MHA_BLOCK[i] = copyMHABlockfromFILE(MHA_BLOCK[i], str);
+    // }
+
     Tensor **MHA_block0 = makeMHABlock(0);
 
-    MHA_block0 = copyMHABlockfromFILE(MHA_block0, "block_0.bin");
+    MHA_block0 = copyMHABlockfromFILE(MHA_block0, "0_newblock.bin");
 
     Tensor**dMHA_block0 = copyMHABlock(makeMHABlock(1), MHA_block0);
 
-    Tensor* dQKV = matmul_bias(makeTensor("4 196 2304", 1),dInput, dMHA_block0[0], dMHA_block0[1], 0);
 
-
+    Tensor* dQKV = matmul_bias(makeTensor("4 196 2304", 1),dInput, dMHA_block0[2], dMHA_block0[3], 0);
 
     //dQKV check
     // Tensor* dd = copyTensor(makeTensorbyShape(dQKV, 0),dQKV);

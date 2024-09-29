@@ -14,22 +14,30 @@
 
 //BLOCK
 //QKV(768 2304) PROJ(768 768) MLP(768 3072) MLP(3072 768)
-#define NUM_OF_TENSORS_IN_MHABLOCK 8
+#define NUM_OF_TENSORS_IN_MHABLOCK 12
+#define WQKV_INX 2
 
 Tensor** makeMHABlock(int device_type){
     Tensor** newBlock = (Tensor**)malloc(sizeof(Tensor*) * NUM_OF_TENSORS_IN_MHABLOCK);
 
-    newBlock[0] = makeTensor("768 2304", device_type);  // QKV(768 2304)
-    newBlock[1] = makeTensor("2304", device_type);       // QKV bias
+    //norm
+    newBlock[0] = makeTensor("768", device_type);       // NORM1 weight
+    newBlock[1] = makeTensor("768", device_type);       // NORM1 bias
 
-    newBlock[2] = makeTensor("768 768", device_type);   // Linear Projection after concat (768 768)
-    newBlock[3] = makeTensor("768", device_type);       // Proj bias
+    newBlock[2] = makeTensor("768 2304", device_type);  // QKV(768 2304)
+    newBlock[3] = makeTensor("2304", device_type);       // QKV bias
 
-    newBlock[4] = makeTensor("768 3072", device_type);  // MLP1 (768 3072)
-    newBlock[5] = makeTensor("3072", device_type);      // MLP1 bias
+    newBlock[4] = makeTensor("768 768", device_type);   // Linear Projection after concat (768 768)
+    newBlock[5] = makeTensor("768", device_type);       // Proj bias
 
-    newBlock[6] = makeTensor("3072 768", device_type);  // MLP2 (3072 768)
-    newBlock[7] = makeTensor("768", device_type);       // MLP2 bias
+    newBlock[6] = makeTensor("768", device_type);       // NORM2 weight
+    newBlock[7] = makeTensor("768", device_type);       // NORM2 bias
+
+    newBlock[8] = makeTensor("768 3072", device_type);  // MLP1 (768 3072)
+    newBlock[9] = makeTensor("3072", device_type);      // MLP1 bias
+
+    newBlock[10] = makeTensor("3072 768", device_type);  // MLP2 (3072 768)
+    newBlock[11] = makeTensor("768", device_type);       // MLP2 bias
 
     return newBlock;
 }
@@ -64,7 +72,7 @@ Tensor** copyMHABlockfromFILE(Tensor** block, const char* file_name){
         return NULL;
     }
 
-    for(int i=1; i < 8; i++){
+    for(int i=1; i < NUM_OF_TENSORS_IN_MHABLOCK; i++){
     
         num_elements = fread(block[i]->T, sizeof(float), block[i]->sizeTensor, file);
         if (num_elements != block[i]->sizeTensor) {
@@ -83,7 +91,7 @@ Tensor** copyMHABlock(Tensor** dst, Tensor** src){
         printf("no block.\n");
         return NULL;
     }
-    for(int i=0; i < 8; i++){
+    for(int i=0; i < NUM_OF_TENSORS_IN_MHABLOCK; i++){
         copyTensor(dst[i], src[i]);
     }
     return dst;
