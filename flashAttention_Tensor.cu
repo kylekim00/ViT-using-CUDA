@@ -34,6 +34,7 @@ int main(){
     //     MHA_BLOCK[i] = copyMHABlockfromFILE(MHA_BLOCK[i], str);
     // }
 
+    
     Tensor **MHA_block0 = makeMHABlock(0);
 
     MHA_block0 = copyMHABlockfromFILE(MHA_block0, "0_newblock.bin");
