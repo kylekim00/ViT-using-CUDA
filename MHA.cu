@@ -143,7 +143,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
     int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM);
-
+    //Z는 batch 와 head의 inx를 가지고 있다.
     int z_batch = blockIdx.z / num_of_head; //batch_Idx
     int z_head = blockIdx.z % num_of_head;  //head_Idx
     
@@ -179,7 +179,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     for(int iter=0; iter < dQKV_dim[1]; iter+= ATTN_TILE_SIZE){// PATCH_SIZE를 이제부터 쭉 돌거임.
 
         //load K
-        if(row < dQKV_dim[1]){
+        if((iter + threadIdx.y) < dQKV_dim[1]){
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
                 KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM/*k*/ + col + i];
             }
@@ -201,32 +201,49 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         __syncthreads();
         
         
+
+
+
         
         // rowMax(최신 max값을 tmp_max에 저장.)
         if(threadIdx.x== 0){//tmp_max[] -> KV[0][]//이거 만약 TILESIZE가 64보다 커지면 문제된다.
             KV[0][threadIdx.y] = m[threadIdx.y];//-
             for(int i=0; i < ATTN_TILE_SIZE; i++){
-                if(SP[threadIdx.y][i] > KV[0][threadIdx.y])//-
-                    KV[0][threadIdx.y] = SP[threadIdx.y][i];//-
+                if(iter + i < dQKV_dim[1]){/////////////////////////////현재 작업중
+                    if(SP[threadIdx.y][i] > KV[0][threadIdx.y])//-
+                        KV[0][threadIdx.y] = SP[threadIdx.y][i];//-
+                }
             }
         }
         __syncthreads();
 
+        
 
 
         //tmp 계속 QK값 담고있음.
         //물결P 구하기
         float r_max = (KV[0][threadIdx.y] > m[threadIdx.y])? KV[0][threadIdx.y] : m[threadIdx.y];//여기서부터 tmp_max는 필요 없게 된다.//-
         __syncthreads();
-        SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);//rowsum을 구하기 위한 메모리
+
+        if ((iter + threadIdx.x) < dQKV_dim[1]) {
+            SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);
+        } else {
+            SP[threadIdx.y][threadIdx.x] = 0;
+        }
+        // SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);//rowsum을 구하기 위한 메모리
         __syncthreads();
 
 
+
         //////////////rowsum & sum 계산///////////////
+
+        
+
         if(threadIdx.x == 0){
             float tmp_l = 0;
             for(int i=0; i < ATTN_TILE_SIZE; i++){
-                tmp_l += SP[threadIdx.y][i];
+                if(iter + i < dQKV_dim[1])/////////////////////////////현재 작업중
+                    tmp_l += SP[threadIdx.y][i];
             }
 
             l[threadIdx.y] = expf(m[threadIdx.y] - r_max) * l[threadIdx.y] + tmp_l;
@@ -234,7 +251,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         __syncthreads();
         
         //load V
-        if(row < dQKV_dim[1]){
+        if(iter + threadIdx.y < dQKV_dim[1]){
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
                 KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM*2/*V*/ + col + i];
             }
@@ -245,7 +262,16 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         }
         __syncthreads();
 
-        // if(iter==1*ATTN_TILE_SIZE && row==0 &&col==0 && blockIdx.z==0){
+        // if(iter==11*ATTN_TILE_SIZE && row==192 &&col==0 && blockIdx.z==0){
+        //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
+        //     for(int i=0; i < ATTN_TILE_SIZE; i++){
+        //         for(int j=0; j < ATTN_TILE_SIZE; j++){
+        //             printf("%0.2f\t", SP[i][j]);
+        //         }printf("\n");
+        //     }
+        // }
+        // __syncthreads();
+        // if(iter==11*ATTN_TILE_SIZE && row==192 &&col==0 && blockIdx.z==0){
         //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
         //     for(int i=0; i < ATTN_TILE_SIZE; i++){
         //         for(int j=0; j < ATTN_TILE_SIZE; j++){
@@ -282,7 +308,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
             O[threadIdx.y][threadIdx.x + i] = tmp;
             __syncthreads();
             ////메모리 체크/////
-            // if(row ==0 && col == 0 && blockIdx.z==0 && /*iter ==0 * ATTN_TILE_SIZE &&*/ i==0){
+            // if(row ==192 && col == 0 && blockIdx.z==0 && iter ==11 * ATTN_TILE_SIZE && i==0){
             //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
             //     for(int i=0; i < ATTN_TILE_SIZE; i++){
             //         for(int j=0; j < ATTN_TILE_SIZE; j++){
@@ -292,7 +318,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
 
             //     // printf("<blockIdx:[%d %d]>O : %f\n",z_batch,z_head, tmp);
             // }
-            // __syncthreads();
+            __syncthreads();
         }
 
         
@@ -313,7 +339,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
             O[threadIdx.y][threadIdx.x + i] /= l[threadIdx.y];
             __syncthreads();
             
-            // if(i==0 && row==0 &&col==0 && blockIdx.z==12){
+            // if(i==0 && row==192 &&col==0 && blockIdx.z==0){
             //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
             //     for(int i=0; i < ATTN_TILE_SIZE; i++){
             //         for(int j=0; j < ATTN_TILE_SIZE; j++){
@@ -322,7 +348,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
             //     }
             //     printf("QKV : %d\n", dQKV_dim[1]);
             // }
-            __syncthreads();
+            // __syncthreads();
             
             Out[z_batch * dQKV_dim[1] * HIDDEN_DIM * num_of_head/* O matdim*/ + row * HIDDEN_DIM * num_of_head/*rowdim*/ + (z_head*HIDDEN_DIM)/*여기에 head별로 또 나뉘어야함.*/+col + i] = O[threadIdx.y][threadIdx.x + i];
             __syncthreads();

@@ -54,7 +54,7 @@ int main(){
     flashAttention_MHA(O, dQKV);
 
     // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 0","8 16")));
-    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "1 0 0","8 16")));
+    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "0 188 760","8 8")));
     
     // infoTensor(dQKV);
     freeTensor(O);
