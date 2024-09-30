@@ -123,7 +123,7 @@ Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name){
 
 //for FLASH ATTENTION
 #define HIDDEN_DIM 64 // QKV = head * hidden dim * 3
-#define ATTN_TILE_SIZE 32 //GPU 블럭 크기
+#define ATTN_TILE_SIZE 8 //GPU 블럭 크기
 
 // 일단 8로 tile을 맞춰준다고 생각하고 진행한다. 768%8=0, 2304%8=0
 
@@ -142,7 +142,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     //shared mem initialization.
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
-    int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM);
+    int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM);//12
     //Z는 batch 와 head의 inx를 가지고 있다.
     int z_batch = blockIdx.z / num_of_head; //batch_Idx
     int z_head = blockIdx.z % num_of_head;  //head_Idx
@@ -164,7 +164,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     //Q init
     if(row < dQKV_dim[1]){
         for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
-            Q[threadIdx.y][i+threadIdx.x] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + row * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM*3/*headdim*/) + col + i];//여기 3은 QKV 3.
+            Q[threadIdx.y][i+threadIdx.x] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + row * dQKV_dim[4]/*rowdim*/ + 0 * (HIDDEN_DIM* num_of_head/*headdim*/)+ z_head*HIDDEN_DIM/*Q*/ + col + i] / sqrtf(HIDDEN_DIM);//여기 3은 QKV 3.
         }
     }else{
         for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
@@ -179,9 +179,9 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     for(int iter=0; iter < dQKV_dim[1]; iter+= ATTN_TILE_SIZE){// PATCH_SIZE를 이제부터 쭉 돌거임.
 
         //load K
-        if(row < dQKV_dim[1]){
+        if((iter + threadIdx.y) < dQKV_dim[1]){
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
-                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM/*k*/ + col + i];
+                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + 1 * (HIDDEN_DIM * num_of_head/*headdim*/) + z_head * HIDDEN_DIM/*k*/ + col + i];
             }
         }else{
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
@@ -209,19 +209,28 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         if(threadIdx.x== 0){//tmp_max[] -> KV[0][]//이거 만약 TILESIZE가 64보다 커지면 문제된다.
             KV[0][threadIdx.y] = m[threadIdx.y];//-
             for(int i=0; i < ATTN_TILE_SIZE; i++){
-                if(SP[threadIdx.y][i] > KV[0][threadIdx.y])//-
-                    KV[0][threadIdx.y] = SP[threadIdx.y][i];//-
+                if(iter + i < dQKV_dim[1]){/////////////////////////////현재 작업중
+                    if(SP[threadIdx.y][i] > KV[0][threadIdx.y])//-
+                        KV[0][threadIdx.y] = SP[threadIdx.y][i];//-
+                }
             }
         }
         __syncthreads();
 
+        
 
 
         //tmp 계속 QK값 담고있음.
         //물결P 구하기
         float r_max = (KV[0][threadIdx.y] > m[threadIdx.y])? KV[0][threadIdx.y] : m[threadIdx.y];//여기서부터 tmp_max는 필요 없게 된다.//-
         __syncthreads();
-        SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);//rowsum을 구하기 위한 메모리
+
+        if ((iter + threadIdx.x) < dQKV_dim[1]) {
+            SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);
+        } else {
+            SP[threadIdx.y][threadIdx.x] = 0;
+        }
+        // SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);//rowsum을 구하기 위한 메모리
         __syncthreads();
 
 
@@ -233,7 +242,8 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         if(threadIdx.x == 0){
             float tmp_l = 0;
             for(int i=0; i < ATTN_TILE_SIZE; i++){
-                tmp_l += SP[threadIdx.y][i];
+                if(iter + i < dQKV_dim[1])/////////////////////////////현재 작업중
+                    tmp_l += SP[threadIdx.y][i];
             }
 
             l[threadIdx.y] = expf(m[threadIdx.y] - r_max) * l[threadIdx.y] + tmp_l;
@@ -241,9 +251,9 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         __syncthreads();
         
         //load V
-        if(row < dQKV_dim[1]){
+        if(iter + threadIdx.y < dQKV_dim[1]){
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
-                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM*2/*V*/ + col + i];
+                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + 2 * (HIDDEN_DIM * num_of_head/*headdim*/) + z_head * HIDDEN_DIM/*V*/ + col + i];
             }
         }else{
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){

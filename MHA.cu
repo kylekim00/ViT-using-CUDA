@@ -142,7 +142,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     //shared mem initialization.
     int row = blockDim.y * blockIdx.y + threadIdx.y;
     int col = blockDim.x * blockIdx.x + threadIdx.x;
-    int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM);
+    int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM);//12
     //Z는 batch 와 head의 inx를 가지고 있다.
     int z_batch = blockIdx.z / num_of_head; //batch_Idx
     int z_head = blockIdx.z % num_of_head;  //head_Idx
@@ -164,7 +164,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     //Q init
     if(row < dQKV_dim[1]){
         for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
-            Q[threadIdx.y][i+threadIdx.x] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + row * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM*3/*headdim*/) + col + i];//여기 3은 QKV 3.
+            Q[threadIdx.y][i+threadIdx.x] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + row * dQKV_dim[4]/*rowdim*/ + 0 * (HIDDEN_DIM* num_of_head/*headdim*/)+ z_head*HIDDEN_DIM/*Q*/ + col + i] / sqrtf(HIDDEN_DIM);//여기 3은 QKV 3.
         }
     }else{
         for(int i=0; i < HIDDEN_DIM ;i+= ATTN_TILE_SIZE){
@@ -181,7 +181,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         //load K
         if((iter + threadIdx.y) < dQKV_dim[1]){
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
-                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM/*k*/ + col + i];
+                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + 1 * (HIDDEN_DIM * num_of_head/*headdim*/) + z_head * HIDDEN_DIM/*k*/ + col + i];
             }
         }else{
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
@@ -253,7 +253,7 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         //load V
         if(iter + threadIdx.y < dQKV_dim[1]){
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
-                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + z_head * (HIDDEN_DIM * 3/*headdim*/) + HIDDEN_DIM*2/*V*/ + col + i];
+                KV[threadIdx.y][threadIdx.x+i] = QKV[z_batch * dQKV_dim[3]/*matdim*/ + (iter+threadIdx.y) * dQKV_dim[4]/*rowdim*/ + 2 * (HIDDEN_DIM * num_of_head/*headdim*/) + z_head * HIDDEN_DIM/*V*/ + col + i];
             }
         }else{
             for(int i=0; i < HIDDEN_DIM; i+= ATTN_TILE_SIZE){
