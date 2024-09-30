@@ -156,8 +156,6 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
     __syncthreads();
 
     
-
-    
     //if(row && col) 안할거임. 왜냐, 시간문제 걸리니까 일단 배수인 것으로 하고 할거임.
     //196이 8로 나누어 떨어지지 않기 때문에 해야할듯....
     
@@ -230,14 +228,12 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         } else {
             SP[threadIdx.y][threadIdx.x] = 0;
         }
-        // SP[threadIdx.y][threadIdx.x] = expf(tmp - r_max);//rowsum을 구하기 위한 메모리
         __syncthreads();
 
 
 
         //////////////rowsum & sum 계산///////////////
 
-        
 
         if(threadIdx.x == 0){
             float tmp_l = 0;
@@ -262,24 +258,6 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
         }
         __syncthreads();
 
-        // if(iter==11*ATTN_TILE_SIZE && row==192 &&col==0 && blockIdx.z==0){
-        //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
-        //     for(int i=0; i < ATTN_TILE_SIZE; i++){
-        //         for(int j=0; j < ATTN_TILE_SIZE; j++){
-        //             printf("%0.2f\t", SP[i][j]);
-        //         }printf("\n");
-        //     }
-        // }
-        // __syncthreads();
-        // if(iter==11*ATTN_TILE_SIZE && row==192 &&col==0 && blockIdx.z==0){
-        //     printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
-        //     for(int i=0; i < ATTN_TILE_SIZE; i++){
-        //         for(int j=0; j < ATTN_TILE_SIZE; j++){
-        //             printf("%0.2f\t", KV[i][j]);
-        //         }printf("\n");
-        //     }
-        // }
-        // __syncthreads();
         
 //////////////////////////////////일단은 여기까지 확인//////////////////////////////////
         
@@ -318,17 +296,8 @@ __global__ void flashAttention_MHA_(float *Out, float *QKV, int *dQKV_dim){// dQ
 
             //     // printf("<blockIdx:[%d %d]>O : %f\n",z_batch,z_head, tmp);
             // }
-            __syncthreads();
+            // __syncthreads();
         }
-
-        
-        // if(row==0 &&col==0 && blockIdx.z==0){
-        //     printf("+++++++++++++++++++++++++++++++++++\n");
-        //     for(int i=0; i< ATTN_TILE_SIZE;i++){
-        //         printf("%f ", l[i]);
-        //     }printf("\n");
-        // }
-        // __syncthreads();
 
         m[threadIdx.y] = r_max;
         __syncthreads();
