@@ -1,6 +1,5 @@
 # FlashAttention Implementation using CUDA
-To run the example code, Unzip ```./DNN_example/data/data.zip```first.<br/>
-```nvcc easy_tensor_struct.cu ./nn.cu``` to run.
+To run the example code, ```nvcc flashAttention_Tensor.cu MHA.cu Easy_Tensor/easy_tensor_struct.cu ./nn.cu``` to run.
 
 <hr/>
 
@@ -12,7 +11,7 @@ To run the example code, Unzip ```./DNN_example/data/data.zip```first.<br/>
 - ```./MHA.cu```: Multiheaded Attention function, flashAttention implemented<br/>
 - ```./MHA.h```: header file for MHA.cu<br/>
 - ```./ViT_pretrained.ipynb```: ```timm``` module pre-trained weight binary file extraction<br/>
-- ```./flashAttention_Tensor.cu```: ```timm``` module pre-trained weight binary file extraction<br/>
+- ```./flashAttention_Tensor.cu```: main file of project<br/>
 - ```./prop.cu```: device check<br/>
 
 
