@@ -57,9 +57,13 @@ int main(){
     
     // infoTensor(dQKV);
     freeTensor(O);
+    
     freeMHABlock(dMHA_block0);
+
+
     for(int i=0; i < 12; i++){
         freeMHABlock(MHA_BLOCK[i]);
     }
     freeTensor(input);
+    freeTensor(dInput);
 }
