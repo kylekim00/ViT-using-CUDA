@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <cuda_runtime.h>
-#include "easy_tensor.h"
+#include "./Easy_Tensor/easy_tensor.h"
 
 
 Tensor** makeMHABlock(int device_type);

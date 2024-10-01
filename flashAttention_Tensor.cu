@@ -25,14 +25,20 @@ int main(){
 
 
     //MHA_block0 FILE copy
-    Tensor **MHA_block0 = makeMHABlock(0);
+    Tensor** MHA_BLOCK[12];
+    for(int i=0; i < 12; i++){
+        MHA_BLOCK[i] = makeMHABlock(0);
+    }
 
-    MHA_block0 = copyMHABlockfromFILE(MHA_block0, "block_0.bin");
+    MHA_BLOCK[0] = copyMHABlockfromFILE(MHA_BLOCK[0], "0_newblock.bin");
 
-    Tensor**dMHA_block0 = copyMHABlock(makeMHABlock(1), MHA_block0);
 
-    Tensor* dQKV = matmul_bias(makeTensor("4 196 2304", 1),dInput, dMHA_block0[0], dMHA_block0[1], 0);
 
+    Tensor**dMHA_block0 = copyMHABlock(makeMHABlock(1), MHA_BLOCK[0]);
+
+    Tensor* O = makeTensor("4 196 768", 1);
+    Tensor* O_proj  = makeTensor("4 196 768", 1);
+    Tensor* dQKV = makeTensor("4 196 2304", 1);
 
 
     //dQKV check
@@ -41,14 +47,15 @@ int main(){
 
     ///////ATTNTN////////
 
-    Tensor* O = makeTensor("4 196 768", 1);
-    Tensor* O_norm = makeTensor("4 196 768", 1);
-    flashAttention_MHA(O, dQKV);
+Tensor* O_norm = makeTensor("4 196 768", 1);
+    dQKV = matmul_bias(dQKV, dInput, dMHA_block0[2], dMHA_block0[3], 0);//get QKV
+    O = flashAttention_MHA(O, dQKV);//Flash Attention
+    matmul_bias(O_proj, O, dMHA_block0[4], dMHA_block0[5], 0);//Projection
     for(int i=0; )
     flashAttention_MHA(O, O_norm);
 
     // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 0","8 16")));
-    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "1 0 0","8 16")));
+    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O_proj, 0), O_proj), "2 188 760","8 8")));
 
 
     
@@ -57,7 +64,13 @@ int main(){
     
     // infoTensor(dQKV);
     freeTensor(O);
-    freeMHABlock(MHA_block0);
+    
     freeMHABlock(dMHA_block0);
+
+
+    for(int i=0; i < 12; i++){
+        freeMHABlock(MHA_BLOCK[i]);
+    }
     freeTensor(input);
+    freeTensor(dInput);
 }
