@@ -1,6 +1,5 @@
 # FlashAttention Implementation using CUDA
-To run the example code, Unzip ```./DNN_example/data/data.zip```first.<br/>
-```nvcc easy_tensor_struct.cu ./nn.cu``` to run.
+To run the example code, ```nvcc flashAttention_Tensor.cu MHA.cu Easy_Tensor/easy_tensor_struct.cu ./nn.cu``` to run.
 
 <hr/>
 
