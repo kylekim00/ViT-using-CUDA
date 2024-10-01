@@ -11,7 +11,7 @@ To run the example code, ```nvcc flashAttention_Tensor.cu MHA.cu Easy_Tensor/eas
 - ```./MHA.cu```: Multiheaded Attention function, flashAttention implemented<br/>
 - ```./MHA.h```: header file for MHA.cu<br/>
 - ```./ViT_pretrained.ipynb```: ```timm``` module pre-trained weight binary file extraction<br/>
-- ```./flashAttention_Tensor.cu```: ```timm``` module pre-trained weight binary file extraction<br/>
+- ```./flashAttention_Tensor.cu```: main file of project<br/>
 - ```./prop.cu```: device check<br/>
 
 
