@@ -123,7 +123,7 @@ Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name){
 
 //for FLASH ATTENTION
 #define HIDDEN_DIM 64 // QKV = head * hidden dim * 3
-#define ATTN_TILE_SIZE 8 //GPU 블럭 크기
+#define ATTN_TILE_SIZE 16 //GPU 블럭 크기
 
 // 일단 8로 tile을 맞춰준다고 생각하고 진행한다. 768%8=0, 2304%8=0
 

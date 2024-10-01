@@ -51,7 +51,6 @@ Tensor* O_norm = makeTensor("4 196 768", 1);
     dQKV = matmul_bias(dQKV, dInput, dMHA_block0[2], dMHA_block0[3], 0);//get QKV
     O = flashAttention_MHA(O, dQKV);//Flash Attention
     matmul_bias(O_proj, O, dMHA_block0[4], dMHA_block0[5], 0);//Projection
-    for(int i=0; )
     flashAttention_MHA(O, O_norm);
 
     // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 0","8 16")));
