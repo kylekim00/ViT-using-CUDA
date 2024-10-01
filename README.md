@@ -1,5 +1,21 @@
 # FlashAttention Implementation using CUDA
-### 
+To run the example code, Unzip ```./DNN_example/data/data.zip```first.<br/>
+```nvcc easy_tensor_struct.cu ./nn.cu``` to run.
+
+<hr/>
+
+## Description
+
+- ```./Easy_Tensor/```: Easy Tensor, Tools for cuda in C, submodule <br/>
+- ```./PPT/```: PResentation image description <br/>
+- ```./Pre_weights/```: pretrained weights of ```timm``` module<br/>
+- ```./MHA.cu```: Multiheaded Attention function, flashAttention implemented<br/>
+- ```./MHA.h```: header file for MHA.cu<br/>
+- ```./ViT_pretrained.ipynb```: ```timm``` module pre-trained weight binary file extraction<br/>
+- ```./flashAttention_Tensor.cu```: ```timm``` module pre-trained weight binary file extraction<br/>
+- ```./prop.cu```: device check<br/>
+
+
 ![alt text](https://github.com/kylekim00/Neural-Network-using-CUDA/blob/main/PPT/1.JPG?raw=true)
 ![alt text](https://github.com/kylekim00/Neural-Network-using-CUDA/blob/main/PPT/2.JPG?raw=true)
 ![alt text](https://github.com/kylekim00/Neural-Network-using-CUDA/blob/main/PPT/3.JPG?raw=true)
