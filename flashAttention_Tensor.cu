@@ -18,7 +18,7 @@ int main(){
     Tensor* input = makeTensor(input_dim, 0);
     input = copyTensorfromFILE(input, "dummy_input_4_196_768.bin");
     printf("=======input=======\n");
-    // freeTensor(printTensor(makeSubTensor(input, "0 0 0", "8 8")));
+    freeTensor(printTensor(makeSubTensor(input, "0 0 0", "8 8")));
 
     //input to device
     Tensor*dInput = copyTensor(makeTensorbyShape(input, 1), input);
@@ -47,13 +47,20 @@ int main(){
 
     ///////ATTNTN////////
 
+    
 
+
+    infoTensor(dInput);
+    normalize(dInput, dInput);
+    // elementWise_Tensor(dInput, normalize(dInput, dInput), '*', dMHA_block0[0]);//여기의 dMHA_BLOCK은 broadcasting 을 해야한다.
+    
+    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(dInput, 0), dInput), "0 0 0","8 8")));
     dQKV = matmul_bias(dQKV, dInput, dMHA_block0[2], dMHA_block0[3], 0);//get QKV
     O = flashAttention_MHA(O, dQKV);//Flash Attention
     matmul_bias(O_proj, O, dMHA_block0[4], dMHA_block0[5], 0);//Projection
-
+    
     // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 0","8 16")));
-    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O_proj, 0), O_proj), "2 188 760","8 8")));
+    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O_proj, 0), O_proj), "0 0 0","8 8")));
     
     // infoTensor(dQKV);
     freeTensor(O);
