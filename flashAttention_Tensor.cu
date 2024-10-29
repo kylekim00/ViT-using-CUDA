@@ -53,7 +53,7 @@ int main(){
     Tensor* O = makeTensor("4 197 768", 1);
 
 
-
+    ///////////////////////TMP TENSORS////////////////////////////
     
 
     //Attention tmp tensors.
@@ -70,7 +70,11 @@ int main(){
     
     O = add_CLS_token_init(O, extra_weights_d[2]);//cls token 넣기
 
-    //start
+    //////////////////////////start of Iteration//////////////////////////////////
+    //
+    //
+    //////////////////////////////////////////////////////////////////////////////
+
     dInput = copyTensor(dInput,input);
 
     //////////////patch embedding///////////////
@@ -132,7 +136,10 @@ int main(){
     dOutput = matmul_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7], 0);
 
     output = copyTensor(output, dOutput);
-
+    ////////////////////////////end of Iteration//////////////////////////////////
+    //
+    //
+    //////////////////////////////////////////////////////////////////////////////
     freeTensor(printTensor(makeSubTensor(output, "0 0","4 8")));
     //////////////////////////////////////////////////
 
