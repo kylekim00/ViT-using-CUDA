@@ -7,35 +7,34 @@
 #include "MHA.h"
 #include<string.h>
 
+
 int main(){
     char input_dim[] = "4 196 768";
     
     //dummy input
     Tensor* input = makeTensor(input_dim, 0);
     input = copyTensorfromFILE(input, "dummy_input_4_196_768.bin");
-    Tensor*dInput = makeTensorbyShape(input, 1);
+    // freeTensor(printTensor(makeSubTensor(input, "0 0 0", "8 8")));
 
-    Tensor* output = makeTensor("4 1000", 0);
-    Tensor* dOutput = makeTensorbyShape(output, 1);
-    
-    ///////////////pretrained weight initialization////////////////////
+    //input to device
+    Tensor*dInput = copyTensor(makeTensorbyShape(input, 1), input);
 
-    //EXTRAWEIGHTS
-    Tensor** extra_weights = makeExtraWeights(0);
-    Tensor** extra_weights_d = makeExtraWeights(1);
-    
-    copyExtraWeightsfromFILE(extra_weights, "extra_weights.bin");
-    extra_weights_d = copyExtraWeights(extra_weights_d, extra_weights);
 
+    //pretrained weight initialization
     //MHA_block0 FILE copy
     Tensor** MHA_BLOCK[12];
+
+    //EXTRA_weights copy
+    Tensor** EXTRA_weights = makeExtraWeights(0);
+    copyExtraWeightsfromFILE(EXTRA_weights, "extra_weights.bin");
+    Tensor** EXTRA_weights_d = copyExtraWeights(makeExtraWeights(1), EXTRA_weights);
+
+    
+
 
     for(int i=0; i < 12; i++){
         MHA_BLOCK[i] = makeMHABlock(0);
     }
-
-
-
     copyMHABlockfromFILE(MHA_BLOCK[0], "0_newblock.bin");
     copyMHABlockfromFILE(MHA_BLOCK[1], "1_newblock.bin");
     copyMHABlockfromFILE(MHA_BLOCK[2], "2_newblock.bin");
@@ -49,39 +48,27 @@ int main(){
     copyMHABlockfromFILE(MHA_BLOCK[10], "10_newblock.bin");
     copyMHABlockfromFILE(MHA_BLOCK[11], "11_newblock.bin");
     
-    Tensor**dMHA_block = makeMHABlock(1);
-    Tensor* O = makeTensor("4 197 768", 1);
-
-
-
     
+    Tensor**dMHA_block = makeMHABlock(1);
+
+    Tensor* O = makeTensor("4 196 768", 1);
+
+
+
 
     //Attention tmp tensors.
     int ATTN_layer_num = 12;
+    Tensor* O_proj  = makeTensor("4 196 768", 1);
+    Tensor* attn_Residual = makeTensorbyShape(dInput, dInput->device_type);//이거는 Attention블럭 들어가기 전에 있어야한다. residual 전달해야됌
+    Tensor* dQKV = makeTensor("4 196 2304", 1);
+    Tensor* attn_mlp = makeTensor("4 196 3072", 1);
 
-    Tensor* dInput_embed = makeTensorbyShape(input, 1);
-    
-    Tensor* O_proj = makeTensor("4 197 768", 1);
-    Tensor* attn_Residual = makeTensorbyShape(O, 1);//이거는 Attention블럭 들어가기 전에 있어야한다. residual 전달해야됌
-    Tensor* dQKV = makeTensor("4 197 2304", 1);
-    Tensor* attn_mlp = makeTensor("4 197 3072", 1);
-
-    Tensor* head = makeTensor("4 768", 1);
-    
-    O = add_CLS_token_init(O, extra_weights_d[2]);//cls token 넣기
 
     //start
-    dInput = copyTensor(dInput,input);
+    dInput = copyTensor(dInput, input);
 
     //////////////patch embedding///////////////
-    dInput_embed = matmul_bias(dInput_embed, dInput, extra_weights_d[0], extra_weights_d[1], 0);
-    
-    ///////////////cls_token////////////////////
-    O = add_CLS_token(O, dInput_embed);                  //input넣기
-    
-    //////////////pos_embed/////////////////////
-    O = elementWise_Tensor(O, O, '+', extra_weights_d[3]);
-    // O = copyTensor(O, dInput);//임시 197
+    O = matmul_bias(O, dInput, EXTRA_weights_d[0], EXTRA_weights_d[1], 0);
 
     //////////Attention Block////////////
 
@@ -117,23 +104,9 @@ int main(){
         O = matmul_bias(O, attn_mlp,dMHA_block[10], dMHA_block[11], 0);
 
         //residual 2
-        O = elementWise_Tensor(O, O, '+', attn_Residual);
+        O= elementWise_Tensor(O, O, '+', attn_Residual);
     }
-    //////////put head out////////////
-
-    //MLP head
-    head = cut_HEAD_out(head, O);
-
-    //normalization
-    head = normalize(head, head);
-    head = elementWise_Tensor(head, head, '*', extra_weights_d[4]);
-    head = elementWise_Tensor(head, head, '+', extra_weights_d[5]);
-    //mlp(768, 1000)
-    dOutput = matmul_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7], 0);
-
-    output = copyTensor(output, dOutput);
-
-    freeTensor(printTensor(makeSubTensor(output, "0 0","4 8")));
+    freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "0 0 0","8 8")));
     //////////////////////////////////////////////////
 
     //===========free=================
@@ -149,8 +122,8 @@ int main(){
         freeMHABlock(MHA_BLOCK[i]);
     }
 
-    // freeExtraWeights(EXTRA_weights);
-    // freeExtraWeights(EXTRA_weights_d);
+    freeExtraWeights(EXTRA_weights);
+    freeExtraWeights(EXTRA_weights_d);
     freeTensor(input);
     freeTensor(dInput);
 }

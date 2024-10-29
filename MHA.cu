@@ -12,11 +12,85 @@
 //그저 flashAttention에 최적화된 형태로 만드는 것이다. 지금은.
 
 
+
+//////////////////////////////Extra_Weights///////////////////////////////
+#define NUM_OF_TENSORS_IN_EXTRAWEIGHTS 8
+
+Tensor** makeExtraWeights(int device_type){
+    Tensor** newBlock = (Tensor**)malloc(sizeof(Tensor*) * NUM_OF_TENSORS_IN_EXTRAWEIGHTS);
+    //patch_embedd
+    newBlock[0] = makeTensor("768 768", device_type);
+    newBlock[1] = makeTensor("768", device_type);
+    //cls TOKEN
+    newBlock[2] = makeTensor("768", device_type);
+    //positional Embedding
+    newBlock[3] = makeTensor("197 768", device_type);
+    //end_norm
+    newBlock[4] = makeTensor("768", device_type);
+    newBlock[5] = makeTensor("768", device_type);
+    //end_head
+    newBlock[6] = makeTensor("768 1000", device_type);
+    newBlock[7] = makeTensor("1000", device_type);
+
+    return newBlock;
+}
+
+void freeExtraWeights(Tensor** block){
+    for(int i=0; i < NUM_OF_TENSORS_IN_EXTRAWEIGHTS; i++)
+        freeTensor(block[i]);
+    free(block);
+}
+
+Tensor** copyExtraWeights(Tensor** dst, Tensor** src){
+    if(dst == NULL || src == NULL){
+        printf("no block.\n");
+        return NULL;
+    }
+    for(int i=0; i < NUM_OF_TENSORS_IN_EXTRAWEIGHTS; i++){
+        copyTensor(dst[i], src[i]);
+    }
+    return dst;
+}
+
+Tensor** copyExtraWeightsfromFILE(Tensor** block, const char* file_name){
+    
+    char f_name[50] = "./pre_weights/";
+    for(int i=0; file_name[i]; i++){
+        f_name[i+14] = file_name[i];
+        f_name[i+15] = 0;
+    }
+    
+    FILE *file = fopen(f_name, "rb");
+    if (!file) {
+        printf("Error opening file\n");
+        return NULL;
+    }
+
+    size_t num_elements = fread(block[0]->T, sizeof(float), block[0]->sizeTensor, file);
+    if (num_elements != block[0]->sizeTensor) {
+        printf("Error reading file\n");
+        return NULL;
+    }
+
+    for(int i=1; i < NUM_OF_TENSORS_IN_EXTRAWEIGHTS; i++){
+    
+        num_elements = fread(block[i]->T, sizeof(float), block[i]->sizeTensor, file);
+        if (num_elements != block[i]->sizeTensor) {
+            printf("Error reading file\n");
+            return NULL;
+        }
+    }
+
+    fclose(file);
+
+    return block;
+}
+
+////////////////////////////////////MHABLOCK////////////////////////////////////
 //BLOCK
 //QKV(768 2304) PROJ(768 768) MLP(768 3072) MLP(3072 768)
 #define NUM_OF_TENSORS_IN_MHABLOCK 12
 #define WQKV_INX 2
-
 Tensor** makeMHABlock(int device_type){
     Tensor** newBlock = (Tensor**)malloc(sizeof(Tensor*) * NUM_OF_TENSORS_IN_MHABLOCK);
 
@@ -43,7 +117,6 @@ Tensor** makeMHABlock(int device_type){
 }
 
 
-
 void freeMHABlock(Tensor** block){
     for(int i=0; i < NUM_OF_TENSORS_IN_MHABLOCK; i++)
         freeTensor(block[i]);
@@ -51,7 +124,6 @@ void freeMHABlock(Tensor** block){
 }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////
 Tensor** copyMHABlockfromFILE(Tensor** block, const char* file_name){
     
     char f_name[50] = "./pre_weights/";
@@ -342,4 +414,37 @@ Tensor* flashAttention_MHA(Tensor* O, Tensor* dQKV){
     dim3 dimBlock(ATTN_TILE_SIZE, ATTN_TILE_SIZE);
     flashAttention_MHA_<<<dimGrid, dimBlock>>>(O->T, dQKV->T, dQKV->d_dim_stride);
     return O;
+}
+
+Tensor* add_CLS_token_init(Tensor* input_197_d, Tensor* cls_token){
+    float* tmp = input_197_d->T;
+    
+    for(int i=0; i < input_197_d->dim[0]; i++){
+        cudaMemcpy(tmp, cls_token->T, cls_token->sizeTensor*sizeof(float), cudaMemcpyHostToDevice);
+        tmp += input_197_d->stride[0];
+    }
+
+    return input_197_d;
+}
+
+Tensor* add_CLS_token(Tensor* input_197_d, Tensor* input_d){
+    float* tmp = input_197_d->T + input_197_d->stride[1];       //차원 건넌 후 768씩 건너뛰기
+    float* tmp2 = input_d->T;
+    for(int i=0; i < input_197_d->dim[0]; i++){                 //
+        cudaMemcpy(tmp, tmp2, input_d->stride[0] * sizeof(float), cudaMemcpyDeviceToDevice);
+        tmp += input_197_d->stride[0];
+        tmp2 += input_d->stride[0];
+    }
+    return input_197_d;
+}
+
+Tensor* cut_HEAD_out(Tensor*head, Tensor* O){
+    float* tmp = head->T;
+    float* tmp2 = O->T;
+    for(int i=0; i < O->dim[0]; i++){
+        cudaMemcpy(tmp, tmp2, O->stride[1] * sizeof(float), cudaMemcpyDeviceToDevice);
+        tmp += head->stride[0];
+        tmp2 += O->stride[0];
+    }
+    return head;
 }
