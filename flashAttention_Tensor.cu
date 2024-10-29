@@ -7,6 +7,8 @@
 #include "MHA.h"
 #include<string.h>
 
+#define ATTN_LAYER_NUM 12
+
 int main(){
     char input_dim[] = "4 196 768";
     
@@ -17,6 +19,8 @@ int main(){
 
     Tensor* output = makeTensor("4 1000", 0);
     Tensor* dOutput = makeTensorbyShape(output, 1);
+
+    Tensor* out_argmax = makeTensor("4", 0);
     
     ///////////////pretrained weight initialization////////////////////
 
@@ -28,10 +32,12 @@ int main(){
     extra_weights_d = copyExtraWeights(extra_weights_d, extra_weights);
 
     //MHA_block0 FILE copy
-    Tensor** MHA_BLOCK[12];
 
-    for(int i=0; i < 12; i++){
+    Tensor** MHA_BLOCK[12];
+    Tensor** dMHA_BLOCK[12];
+    for(int i=0; i < ATTN_LAYER_NUM; i++){
         MHA_BLOCK[i] = makeMHABlock(0);
+        dMHA_BLOCK[i] = makeMHABlock(1);
     }
 
 
@@ -48,19 +54,25 @@ int main(){
     copyMHABlockfromFILE(MHA_BLOCK[9], "9_newblock.bin");
     copyMHABlockfromFILE(MHA_BLOCK[10], "10_newblock.bin");
     copyMHABlockfromFILE(MHA_BLOCK[11], "11_newblock.bin");
-    
-    Tensor**dMHA_block = makeMHABlock(1);
-    Tensor* O = makeTensor("4 197 768", 1);
 
+    // Tensor**dMHA_block = makeMHABlock(1);
+
+    for(int i=0; i < ATTN_LAYER_NUM; i++){
+        dMHA_BLOCK[i] = copyMHABlock(dMHA_BLOCK[i], MHA_BLOCK[i]);
+    }
+
+    for(int i=0; i < ATTN_LAYER_NUM; i++){
+        freeMHABlock(MHA_BLOCK[i]);
+    }
 
     ///////////////////////TMP TENSORS////////////////////////////
     
 
     //Attention tmp tensors.
-    int ATTN_layer_num = 12;
 
     Tensor* dInput_embed = makeTensorbyShape(input, 1);
     
+    Tensor* O = makeTensor("4 197 768", 1);
     Tensor* O_proj = makeTensor("4 197 768", 1);
     Tensor* attn_Residual = makeTensorbyShape(O, 1);//이거는 Attention블럭 들어가기 전에 있어야한다. residual 전달해야됌
     Tensor* dQKV = makeTensor("4 197 2304", 1);
@@ -68,10 +80,12 @@ int main(){
 
     Tensor* head = makeTensor("4 768", 1);
     
-    O = add_CLS_token_init(O, extra_weights_d[2]);//cls token 넣기
+    ////////////////////////initialization////////////////////////////////////////
 
     //////////////////////////start of Iteration//////////////////////////////////
     //
+    for(int iteration = 0; iteration < 30; iteration++){
+        printf("%d\n", iteration);
     //
     //////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +95,7 @@ int main(){
     dInput_embed = matmul_bias(dInput_embed, dInput, extra_weights_d[0], extra_weights_d[1], 0);
     
     ///////////////cls_token////////////////////
+    O = add_CLS_token_init(O, extra_weights_d[2]);//cls token 넣기
     O = add_CLS_token(O, dInput_embed);                  //input넣기
     
     //////////////pos_embed/////////////////////
@@ -91,34 +106,34 @@ int main(){
 
 
     // O = copyTensor(O, input);
-    for(int i=0; i < ATTN_layer_num; i++){
-        dMHA_block = copyMHABlock(dMHA_block, MHA_BLOCK[i]);//이거 그냥 다 복사할 것
+    for(int i=0; i < ATTN_LAYER_NUM; i++){
+        // dMHA_block = copyMHABlock(dMHA_block, MHA_BLOCK[i]);//이거 그냥 다 복사할 것
         //residual store
         copyTensor(attn_Residual, O);
         //normalize 1
         O = normalize(O,O);
-        elementWise_Tensor(O, O, '*', dMHA_block[0]);
-        elementWise_Tensor(O, O, '+', dMHA_block[1]);
+        elementWise_Tensor(O, O, '*', dMHA_BLOCK[i][0]);
+        elementWise_Tensor(O, O, '+', dMHA_BLOCK[i][1]);
 
         //dQKV
-        dQKV = matmul_bias(dQKV, O, dMHA_block[2], dMHA_block[3], 0);//get QKV
+        dQKV = matmul_bias(dQKV, O, dMHA_BLOCK[i][2], dMHA_BLOCK[i][3], 0);//get QKV
         //flashAttnetion
         O = flashAttention_MHA(O, dQKV);
         //projection
-        O_proj = matmul_bias(O_proj, O, dMHA_block[4], dMHA_block[5], 0);
+        O_proj = matmul_bias(O_proj, O, dMHA_BLOCK[i][4], dMHA_BLOCK[i][5], 0);
         //residual 1
         O_proj = elementWise_Tensor(O_proj, O_proj, '+', attn_Residual);
         copyTensor(attn_Residual, O_proj);
 
         //normalize2
         normalize(O_proj, O_proj);
-        elementWise_Tensor(O_proj, O_proj, '*', dMHA_block[6]);
-        elementWise_Tensor(O_proj, O_proj, '+', dMHA_block[7]);
+        elementWise_Tensor(O_proj, O_proj, '*', dMHA_BLOCK[i][6]);
+        elementWise_Tensor(O_proj, O_proj, '+', dMHA_BLOCK[i][7]);
 
         //MLP layer
-        attn_mlp = matmul_bias(attn_mlp, O_proj, dMHA_block[8], dMHA_block[9], 0);
+        attn_mlp = matmul_bias(attn_mlp, O_proj, dMHA_BLOCK[i][8], dMHA_BLOCK[i][9], 0);
         attn_mlp = gelu_Tensor(attn_mlp);
-        O = matmul_bias(O, attn_mlp,dMHA_block[10], dMHA_block[11], 0);
+        O = matmul_bias(O, attn_mlp,dMHA_BLOCK[i][10], dMHA_BLOCK[i][11], 0);
 
         //residual 2
         O = elementWise_Tensor(O, O, '+', attn_Residual);
@@ -136,28 +151,33 @@ int main(){
     dOutput = matmul_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7], 0);
 
     output = copyTensor(output, dOutput);
+    out_argmax = maxmax(out_argmax, output);
     ////////////////////////////end of Iteration//////////////////////////////////
     //
+    printTensor(out_argmax);
+    }
     //
     //////////////////////////////////////////////////////////////////////////////
-    freeTensor(printTensor(makeSubTensor(output, "0 0","4 8")));
+    freeTensor(printTensor(makeSubTensor(output, "0 18","4 8")));
     //////////////////////////////////////////////////
 
     //===========free=================
 
     freeTensor(O);
-    freeMHABlock(dMHA_block);
     freeTensor(O_proj);
     freeTensor(attn_Residual);
     freeTensor(dQKV);
     freeTensor(attn_mlp);
 
-    for(int i=0; i < 12; i++){
-        freeMHABlock(MHA_BLOCK[i]);
+    for(int i=0; i < ATTN_LAYER_NUM; i++){
+        freeMHABlock(dMHA_BLOCK[i]);
     }
-
-    // freeExtraWeights(EXTRA_weights);
-    // freeExtraWeights(EXTRA_weights_d);
+    freeExtraWeights(extra_weights);
+    freeExtraWeights(extra_weights_d);
+    
+    freeTensor(output);
+    freeTensor(dOutput);
+    freeTensor(out_argmax);
     freeTensor(input);
     freeTensor(dInput);
 }

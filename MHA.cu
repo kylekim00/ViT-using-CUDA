@@ -195,7 +195,7 @@ Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name){
 
 //for FLASH ATTENTION
 #define HIDDEN_DIM 64 // QKV = head * hidden dim * 3
-#define ATTN_TILE_SIZE 8 //GPU 블럭 크기
+#define ATTN_TILE_SIZE 16 //GPU 블럭 크기
 
 // 일단 8로 tile을 맞춰준다고 생각하고 진행한다. 768%8=0, 2304%8=0
 
@@ -447,4 +447,19 @@ Tensor* cut_HEAD_out(Tensor*head, Tensor* O){
         tmp2 += O->stride[0];
     }
     return head;
+}
+
+Tensor* maxmax(Tensor* arg_max_CPU, Tensor*src_CPU){
+    for(int i=0; i < src_CPU->dim[0];i++){
+        int max_inx = 0;
+        int max = src_CPU->T[i*src_CPU->stride[0]];
+        for(int j=1; j < src_CPU->dim[1]; j++){
+            if(src_CPU->T[i*src_CPU->stride[0] + j] > max){
+                max_inx = j;
+                max = src_CPU->T[i*src_CPU->stride[0] + j];
+            }
+        }
+        arg_max_CPU->T[i] = max_inx; 
+    }
+    return arg_max_CPU;
 }

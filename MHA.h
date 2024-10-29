@@ -27,4 +27,5 @@ Tensor* add_CLS_token_init(Tensor* input_197_d, Tensor* cls_token);
 
 Tensor* cut_HEAD_out(Tensor*head, Tensor* O);
 
+Tensor* maxmax(Tensor* arg_max_CPU, Tensor*src_CPU);
 #endif // TENSOR_H
