@@ -6,6 +6,7 @@
 #include "./Easy_Tensor/easy_tensor.h"
 #include "MHA.h"
 #include<string.h>
+#include<time.h>
 
 #define ATTN_LAYER_NUM 12
 
@@ -82,9 +83,14 @@ int main(){
     
     ////////////////////////initialization////////////////////////////////////////
 
+
+
     //////////////////////////start of Iteration//////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////
     //
-    for(int iteration = 0; iteration < 30; iteration++){
+    clock_t st_time = clock();
+
+    for(int iteration = 0; iteration < 100; iteration++){
         printf("%d\n", iteration);
     //
     //////////////////////////////////////////////////////////////////////////////
@@ -154,9 +160,12 @@ int main(){
     out_argmax = maxmax(out_argmax, output);
     ////////////////////////////end of Iteration//////////////////////////////////
     //
-    printTensor(out_argmax);
+    // printTensor(out_argmax);
     }
-    //
+    
+    clock_t end_time = clock();
+    double time_taken = (double)(end_time - st_time) / CLOCKS_PER_SEC;
+    printf("실행 시간: %f 초\n", time_taken);
     //////////////////////////////////////////////////////////////////////////////
     freeTensor(printTensor(makeSubTensor(output, "0 18","4 8")));
     //////////////////////////////////////////////////
@@ -181,7 +190,6 @@ int main(){
     freeTensor(input);
     freeTensor(dInput);
 }
-
 
 
     

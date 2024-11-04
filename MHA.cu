@@ -463,3 +463,8 @@ Tensor* maxmax(Tensor* arg_max_CPU, Tensor*src_CPU){
     }
     return arg_max_CPU;
 }
+
+
+Tensor* printLabel(Tensor* arg_max){
+    return NULL;
+}
