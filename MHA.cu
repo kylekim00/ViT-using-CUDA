@@ -195,7 +195,7 @@ Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name){
 
 //for FLASH ATTENTION
 #define HIDDEN_DIM 64 // QKV = head * hidden dim * 3
-#define ATTN_TILE_SIZE 16 //GPU 블럭 크기
+#define ATTN_TILE_SIZE 8 //GPU 블럭 크기
 
 // 일단 8로 tile을 맞춰준다고 생각하고 진행한다. 768%8=0, 2304%8=0
 
@@ -464,7 +464,79 @@ Tensor* maxmax(Tensor* arg_max_CPU, Tensor*src_CPU){
     return arg_max_CPU;
 }
 
+// //
+// __global__ void naiveAttention_MHA_(float *Out, float *QKV, int *dQKV_dim) {
+//     int row = blockDim.y * blockIdx.y + threadIdx.y;
+//     int col = blockDim.x * blockIdx.x + threadIdx.x;
+//     int num_of_head = dQKV_dim[2] / (3 * HIDDEN_DIM); // Number of heads
+//     int z_batch = blockIdx.z / num_of_head; // Batch index
+//     int z_head = blockIdx.z % num_of_head;  // Head index
 
-Tensor* printLabel(Tensor* arg_max){
-    return NULL;
-}
+//     // Initialize shared memory for output
+//     __shared__ float O[HIDDEN_DIM];
+//     if (threadIdx.x < HIDDEN_DIM) {
+//         O[threadIdx.x] = 0;
+//     }
+//     __syncthreads();
+
+//     // Skip out-of-bound threads
+//     if (row >= dQKV_dim[1]) return;
+
+//     // Calculate query, key, and value
+//     float Q[HIDDEN_DIM], K[HIDDEN_DIM], V[HIDDEN_DIM];
+//     for (int i = 0; i < HIDDEN_DIM; ++i) {
+//         Q[i] = QKV[z_batch * dQKV_dim[3] + row * dQKV_dim[4] + z_head * HIDDEN_DIM + i] / sqrtf(HIDDEN_DIM);
+//     }
+
+//     float sum_attention = 0;
+
+//     // Iterate over all rows (tokens) for the attention computation
+//     for (int iter = 0; iter < dQKV_dim[1]; ++iter) {
+//         // Load key and value vectors
+//         for (int i = 0; i < HIDDEN_DIM; ++i) {
+//             K[i] = QKV[z_batch * dQKV_dim[3] + iter * dQKV_dim[4] + HIDDEN_DIM * num_of_head + z_head * HIDDEN_DIM + i];
+//             V[i] = QKV[z_batch * dQKV_dim[3] + iter * dQKV_dim[4] + 2 * HIDDEN_DIM * num_of_head + z_head * HIDDEN_DIM + i];
+//         }
+
+//         // Compute dot product (Q · K)
+//         float attention_score = 0;
+//         for (int i = 0; i < HIDDEN_DIM; ++i) {
+//             attention_score += Q[i] * K[i];
+//         }
+//         float exp_score = expf(attention_score);
+//         sum_attention += exp_score;
+
+//         // Update output (weighted sum of values)
+//         for (int i = 0; i < HIDDEN_DIM; ++i) {
+//             atomicAdd(&O[i], exp_score * V[i]);
+//         }
+//     }
+
+//     // Normalize output by the sum of attention scores
+//     for (int i = 0; i < HIDDEN_DIM; ++i) {
+//         O[i] /= sum_attention;
+//     }
+
+//     // Store output
+//     for (int i = 0; i < HIDDEN_DIM; ++i) {
+//         Out[z_batch * dQKV_dim[1] * HIDDEN_DIM * num_of_head + row * HIDDEN_DIM * num_of_head + z_head * HIDDEN_DIM + i] = O[i];
+//     }
+// }
+
+// Tensor* naive_MHA(Tensor* O, Tensor* dQKV) {
+//     if (!O || !dQKV) {
+//         printf("Invalid Tensor input\n");
+//         return NULL;
+//     }
+//     if (O->device_type != dQKV->device_type) {
+//         printf("Tensors are on different devices.\n");
+//         return NULL;
+//     }
+
+//     cudaSetDevice(dQKV->device_type - 1);
+//     dim3 dimGrid(1, (dQKV->dim[1] + ATTN_TILE_SIZE - 1) / ATTN_TILE_SIZE, dQKV->dim[0] * dQKV->dim[2] / (3 * HIDDEN_DIM));
+//     dim3 dimBlock(ATTN_TILE_SIZE, ATTN_TILE_SIZE);
+
+//     naiveAttention_MHA_<<<dimGrid, dimBlock>>>(O->T, dQKV->T, dQKV->d_dim_stride);
+//     return O;
+// }

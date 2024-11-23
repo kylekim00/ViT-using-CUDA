@@ -90,7 +90,7 @@ int main(){
     //
     clock_t st_time = clock();
 
-    for(int iteration = 0; iteration < 100; iteration++){
+    for(int iteration = 65; iteration < 100; iteration++){
         printf("%d\n", iteration);
     //
     //////////////////////////////////////////////////////////////////////////////

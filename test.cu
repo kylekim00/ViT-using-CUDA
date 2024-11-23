@@ -5,7 +5,7 @@
 #include<string.h>
 Tensor* dummyTensor(Tensor *ten){
     for(int i=0; i < ten->dim[0] * ten->stride[0]; i++){
-        ten->T[i] = i;
+        ten->T[i] = 0.0001 * i;
     }
     return ten;
 }
@@ -18,29 +18,17 @@ Tensor* dummyTensor2(Tensor *ten){
     return ten;
 }
 int main(){
-    Tensor* A = dummyTensor(makeTensor("4 196 768", 0));
+    Tensor* A = dummyTensor(makeTensor("4 196 2304", 0));
     Tensor* dA = copyTensor(makeTensorbyShape(A, 1), A);
-    Tensor* cls = dummyTensor2(makeTensor("768", 0));
-    Tensor* dCls = copyTensor(makeTensorbyShape(cls, 1), cls);
-    Tensor* dInput_cls = makeTensor("4 197 768", 1);
-    Tensor* input_cls = makeTensorbyShape(dInput_cls, 0);
 
-    Tensor* head = makeTensor("4 768", 0);
-    Tensor* dhead = makeTensorbyShape(head, 1);
-    // printTensor(cls);
+    Tensor* O = makeTensor("4 196 768", 0);
 
+    Tensor* dO = makeTensorbyShape(O, 1);
 
-    dInput_cls = add_CLS_token_init(dInput_cls, cls);
+    flashAttention_MHA(dO, dA);
+    printTensor(copyTensor(O, dO));
 
-    dInput_cls = add_CLS_token(dInput_cls, dA);
-
-    cut_HEAD_out(dhead, dInput_cls);
-
-    copyTensor(head, dhead);
-
-    freeTensor(printTensor(makeSubTensor(head, "0 0", "4 8")));
-
-
+    
 
     // input_cls = copyTensor(input_cls, dInput_cls);
     // infoTensor(dInput_cls);
