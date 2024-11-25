@@ -7,9 +7,12 @@
 #include "MHA.h"
 #include<string.h>
 #include<time.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <unistd.h>
+// #define FOLDER_PATH "./data" // 모니터링할 폴더 경로
 
 #define ATTN_LAYER_NUM 12
-
 int main(){
     char input_dim[] = "4 196 768";
     
@@ -90,7 +93,7 @@ int main(){
     //
     clock_t st_time = clock();
 
-    for(int iteration = 0; iteration < 1; iteration++){
+    for(int iteration = 0; iteration < 10; iteration++){
         printf("%d\n", iteration);
     //
     //////////////////////////////////////////////////////////////////////////////
@@ -163,6 +166,9 @@ int main(){
     matmul_cublas_batched_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7]);
     output = copyTensor(output, dOutput);
     out_argmax = maxmax(out_argmax, output);
+    for(int i=0; i < out_argmax->dim[0]; i++){
+        printf("%s\n", IMAGENET_LABELS[(int)out_argmax->T[i]]);
+    }
     ////////////////////////////end of Iteration//////////////////////////////////
     //
     // printTensor(out_argmax);
@@ -195,49 +201,4 @@ int main(){
     freeTensor(input);
     freeTensor(dInput);
 }
-
-
-    
-    // ///////ATTNTN////////
-    // //residual store
-    // copyTensor(attn_Residual, dInput);
-    // printf("=input=\n");
-    // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(dInput, 0), dInput), "0 0 0","8 8")));
-    // //normalize1
-    // normalize(dInput, dInput);
-    // elementWise_Tensor(dInput, dInput, '*', dMHA_block[0]);//여기의 dMHA_BLOCK은 broadcasting 을 해야한다.
-    // printf("=norm=\n");
-    // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(dInput, 0), dInput), "0 0 0","8 8")));
-    // elementWise_Tensor(dInput, dInput, '+', dMHA_block[1]);
-
-    // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(dInput, 0), dInput), "0 0 0","8 8")));
-    // //QKV
-    // dQKV = matmul_bias(dQKV, dInput, dMHA_block[2], dMHA_block[3], 0);//get QKV
-
-    // //flashAttention
-    // O = flashAttention_MHA(O, dQKV);//Flash Attention
-    
-    // //projection
-    // O_proj = matmul_bias(O_proj, O, dMHA_block[4], dMHA_block[5], 0);//Projection
-    // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O_proj, 0), O_proj), "0 0 0","8 8")));
-    
-    // //residual 1
-    // O_proj = elementWise_Tensor(O_proj, O_proj, '+', attn_Residual);
-    // copyTensor(attn_Residual, O_proj);
-
-    // //normalize2
-    // normalize(O_proj, O_proj);
-    // elementWise_Tensor(O_proj, O_proj, '*', dMHA_block[6]);
-    // elementWise_Tensor(O_proj, O_proj, '+', dMHA_block[7]);
-
-    // //MLP layer
-    // attn_mlp = matmul_bias(attn_mlp, O_proj, dMHA_block[8], dMHA_block[9], 0);
-    // attn_mlp = gelu_Tensor(attn_mlp);
-    // O = matmul_bias(O, attn_mlp,dMHA_block[10], dMHA_block[11], 0);
-
-    // //residual 2
-    // O_proj = elementWise_Tensor(O, O, '+', attn_Residual);
-    // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 760","8 8")));
-    // // freeTensor(printTensor(makeSubTensor(copyTensor(makeTensorbyShape(O, 0), O), "2 188 0","8 16")));
-    // // infoTensor(dQKV);
 
