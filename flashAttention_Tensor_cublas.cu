@@ -15,7 +15,7 @@ int main(){
     
     //dummy input
     Tensor* input = makeTensor(input_dim, 0);
-    input = copyTensorfromFILE(input, "dummy_input_4_196_768.bin");
+    input = copyTensorfromFILE(input, "floated_img.bin");
     Tensor*dInput = makeTensorbyShape(input, 1);
 
     Tensor* output = makeTensor("4 1000", 0);
@@ -90,7 +90,7 @@ int main(){
     //
     clock_t st_time = clock();
 
-    for(int iteration = 0; iteration < 100; iteration++){
+    for(int iteration = 0; iteration < 1; iteration++){
         printf("%d\n", iteration);
     //
     //////////////////////////////////////////////////////////////////////////////
@@ -171,7 +171,7 @@ int main(){
     double time_taken = (double)(end_time - st_time) / CLOCKS_PER_SEC;
     printf("실행 시간: %f 초\n", time_taken);
     //////////////////////////////////////////////////////////////////////////////
-    freeTensor(printTensor(makeSubTensor(output, "0 18","4 8")));
+    freeTensor(printTensor(makeSubTensor(output, "0 895","4 8")));
     //////////////////////////////////////////////////
 
     //===========free=================

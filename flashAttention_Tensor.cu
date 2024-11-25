@@ -15,7 +15,7 @@ int main(){
     
     //dummy input
     Tensor* input = makeTensor(input_dim, 0);
-    input = copyTensorfromFILE(input, "dummy_input_4_196_768.bin");
+    input = copyTensorfromFILE(input, "floated_img.bin");
     Tensor*dInput = makeTensorbyShape(input, 1);
 
     Tensor* output = makeTensor("4 1000", 0);
