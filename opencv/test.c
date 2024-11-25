@@ -80,7 +80,7 @@ int main() {
             // 파일 경로 생성
             char file_path[1024];
             snprintf(file_path, sizeof(file_path), "%s/%s", FOLDER_PATH, entry->d_name);
-
+            
             // 파일 처리
             process_bin_file(file_path);
 

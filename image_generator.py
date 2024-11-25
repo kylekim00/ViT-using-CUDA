@@ -50,11 +50,11 @@ try:
             
             # 화면에 표시
             # cv2.imshow(f'Image {i + 1}', cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
-            cv2.imshow("",cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
+            cv2.imshow("",cropped_frame)
             # cv2.waitKey(1)  # 짧은 대기
 
         # 1초 대기
-        while len(os.listdir('./data')) > 10:
+        while len(os.listdir('pre_weights/data_queue')) > 10:
             print("file num over 10. waiting...")
             time.sleep(1)
             continue
@@ -71,11 +71,20 @@ try:
             else:
                 cnt = 0
             old_tmstmp = timestamp
-            filename = f"data/batch_{timestamp}_{cnt}.bin"
-            with open(filename, "wb") as f:
+            # Save to a temporary file
+            temp_filename = f"pre_weights/data_queue/batch_{timestamp}_{cnt}.tmp"
+            with open(temp_filename, "wb") as f:
                 stacked_batch.tofile(f)
+
+            # Rename the file after writing is complete
+            os.rename(temp_filename, f"pre_weights/data_queue/batch_{timestamp}_{cnt}.bin")
+            print(f"4개의 이미지가 'batch_{timestamp}_{cnt}.bin'로 저장되었습니다.")
+
+            # filename = f"pre_weights/data_queue/batch_{timestamp}_{cnt}.bin"
+            # with open(filename, "wb") as f:
+            #     stacked_batch.tofile(f)
             
-            print(f"4개의 이미지가 '{filename}'로 저장되었습니다.")
+            # print(f"4개의 이미지가 '{filename}'로 저장되었습니다.")
 
         # 'q' 키를 누르면 종료
         if cv2.waitKey(1) & 0xFF == ord('q'):

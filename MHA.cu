@@ -169,27 +169,43 @@ Tensor** copyMHABlock(Tensor** dst, Tensor** src){
     return dst;
 }
 
-Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name){
-    char f_name[50] = "./pre_weights/";
-    for(int i=0; file_name[i]; i++){
-        f_name[i+14] = file_name[i];
-        f_name[i+15] = 0;
+Tensor* copyTensorfromFILE(Tensor* dst, const char* file_name) {
+    char f_name[100] = "./pre_weights/";
+    for (int i = 0; file_name[i]; i++) {
+        f_name[i + 14] = file_name[i];
+        f_name[i + 15] = 0;
     }
-    
+
     FILE *file = fopen(f_name, "rb");
     if (!file) {
-        printf("Error opening file\n");
+        printf("copyTensorfromFILE : error opening file %s\n", f_name);
         return NULL;
     }
 
-    size_t num_elements = fread(dst->T, sizeof(float), dst->dim[0]*dst->stride[0], file);
-    if (num_elements != dst->dim[0]*dst->stride[0]) {
-        printf("Error reading file\n");
+    // Get file size
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    rewind(file);  // Reset the file pointer to the start
+
+    // printf("file size : %ld\n", file_size);
+
+    // Validate file size
+    long expected_size = dst->sizeTensor * sizeof(float);
+    if (file_size != expected_size) {
+        printf("copyTensorfromFILE : file size mismatch (expected %ld, got %ld)\n", expected_size, file_size);
+        fclose(file);
+        return NULL;
+    }
+
+    // Read data into the tensor
+    size_t num_elements = fread(dst->T, sizeof(float), dst->sizeTensor, file);
+    if (num_elements != dst->sizeTensor) {
+        printf("copyTensorfromFILE : error reading file, expected %d elements, got %ld\n", dst->sizeTensor, num_elements);
+        fclose(file);
         return NULL;
     }
 
     fclose(file);
-
     return dst;
 }
 

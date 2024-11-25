@@ -18,7 +18,7 @@ int main(){
     
     //dummy input
     Tensor* input = makeTensor(input_dim, 0);
-    input = copyTensorfromFILE(input, "floated_img.bin");
+    // input = copyTensorfromFILE(input, "floated_img.bin");
     Tensor*dInput = makeTensorbyShape(input, 1);
 
     Tensor* output = makeTensor("4 1000", 0);
@@ -92,87 +92,139 @@ int main(){
     //////////////////////////////////////////////////////////////////////////////
     //
     clock_t st_time = clock();
+    #define FOLDER_PATH "./pre_weights/data_queue" // 모니터링할 폴더 경로
 
-    for(int iteration = 0; iteration < 10; iteration++){
-        printf("%d\n", iteration);
+    while(1){
+        struct dirent *entry;
+        DIR *dir = opendir(FOLDER_PATH);
+
+        if (dir == NULL) {
+            perror("opendir");
+            return EXIT_FAILURE;
+        }
+
+        // int found_file = 0; // 파일이 있는지 확인하기 위한 플래그
+        while ((entry = readdir(dir)) != NULL) {
+            // 숨김 파일(`.` 및 `..`) 무시
+            if (entry->d_name[0] == '.') {
+                continue;
+            }
+
+            // .bin 파일만 처리
+            const char *ext = strrchr(entry->d_name, '.');
+            if (ext == NULL || strcmp(ext, ".bin") != 0) {
+                continue; // 확장자가 .bin이 아니면 건너뜀
+            }
+
+            // 파일 경로 생성
+            char file_path[1024];
+            snprintf(file_path, sizeof(file_path), "%s/%s", "data_queue", entry->d_name);
+
+            // 파일 처리
+            // process_bin_file(file_path);
+            if(!copyTensorfromFILE(input, file_path)){
+                snprintf(file_path, sizeof(file_path), "%s/%s", FOLDER_PATH, entry->d_name);
+                if (remove(file_path) == 0) {
+                    printf("Deleted file: %s\n", file_path);
+                } else {
+                    perror("remove");
+                }
+                break;
+            }
+
+            dInput = copyTensor(dInput,input);
+
+            //////////////patch embedding///////////////
+            dInput_embed = matmul_bias(dInput_embed, dInput, extra_weights_d[0], extra_weights_d[1], 0);
+            
+            ///////////////cls_token////////////////////
+            O = add_CLS_token_init(O, extra_weights_d[2]);//cls token 넣기
+            O = add_CLS_token(O, dInput_embed);                  //input넣기
+            
+            //////////////pos_embed/////////////////////
+            O = elementWise_Tensor(O, O, '+', extra_weights_d[3]);
+            // O = copyTensor(O, dInput);//임시 197
+
+            //////////Attention Block////////////
+
+
+            // O = copyTensor(O, input);
+            for(int i=0; i < ATTN_LAYER_NUM; i++){
+                // dMHA_block = copyMHABlock(dMHA_block, MHA_BLOCK[i]);//이거 그냥 다 복사할 것
+                //residual store
+                copyTensor(attn_Residual, O);
+                //normalize 1
+                O = normalize(O,O);
+                elementWise_Tensor(O, O, '*', dMHA_BLOCK[i][0]);
+                elementWise_Tensor(O, O, '+', dMHA_BLOCK[i][1]);
+
+                //dQKV
+                // dQKV = matmul_bias(dQKV, O, dMHA_BLOCK[i][2], dMHA_BLOCK[i][3], 0);//get QKV
+                matmul_cublas_batched_bias(dQKV, O, dMHA_BLOCK[i][2], dMHA_BLOCK[i][3]);
+                //flashAttnetion
+                O = flashAttention_MHA(O, dQKV);
+                //projection
+                // O_proj = matmul_bias(O_proj, O, dMHA_BLOCK[i][4], dMHA_BLOCK[i][5], 0);
+                matmul_cublas_batched_bias(O_proj, O, dMHA_BLOCK[i][4], dMHA_BLOCK[i][5]);
+                //residual 1
+                O_proj = elementWise_Tensor(O_proj, O_proj, '+', attn_Residual);
+                copyTensor(attn_Residual, O_proj);
+
+                //normalize2
+                normalize(O_proj, O_proj);
+                elementWise_Tensor(O_proj, O_proj, '*', dMHA_BLOCK[i][6]);
+                elementWise_Tensor(O_proj, O_proj, '+', dMHA_BLOCK[i][7]);
+
+                //MLP layer
+                // attn_mlp = matmul_bias(attn_mlp, O_proj, dMHA_BLOCK[i][8], dMHA_BLOCK[i][9], 0);
+                matmul_cublas_batched_bias(attn_mlp, O_proj, dMHA_BLOCK[i][8], dMHA_BLOCK[i][9]);
+                attn_mlp = gelu_Tensor(attn_mlp);
+                // O = matmul_bias(O, attn_mlp,dMHA_BLOCK[i][10], dMHA_BLOCK[i][11], 0);
+                matmul_cublas_batched_bias(O, attn_mlp,dMHA_BLOCK[i][10], dMHA_BLOCK[i][11]);
+
+                //residual 2
+                O = elementWise_Tensor(O, O, '+', attn_Residual);
+            }
+            //////////put head out////////////
+
+            //MLP head
+            head = cut_HEAD_out(head, O);
+
+            //normalization
+            head = normalize(head, head);
+            head = elementWise_Tensor(head, head, '*', extra_weights_d[4]);
+            head = elementWise_Tensor(head, head, '+', extra_weights_d[5]);
+            //mlp(768, 1000)
+            dOutput = matmul_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7], 0);
+            matmul_cublas_batched_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7]);
+            output = copyTensor(output, dOutput);
+            out_argmax = maxmax(out_argmax, output);
+            for(int i=0; i < out_argmax->dim[0]; i++){
+                printf("%s\n", IMAGENET_LABELS[(int)out_argmax->T[i]]);
+            }
+
+
+
+            ////////////////////////////end of Iteration//////////////////////////////////
+            
+            //////////////////////////////////////////////////////////////////////////////
+            snprintf(file_path, sizeof(file_path), "%s/%s", FOLDER_PATH, entry->d_name);
+            if (remove(file_path) == 0) {
+                // printf("Deleted file: %s\n", file_path);
+            } else {
+                perror("remove");
+            }
+            // printTensor(out_argmax);
+            // found_file = 1; // 파일이 있었음을 표시
+            break;          // 첫 번째 파일만 처리 후 종료
+        }
+
+        closedir(dir);
+    }
     //
     //////////////////////////////////////////////////////////////////////////////
-    // input = copyTensorfromFILE(input, "floated_img.bin");
-
-    dInput = copyTensor(dInput,input);
-
-    //////////////patch embedding///////////////
-    dInput_embed = matmul_bias(dInput_embed, dInput, extra_weights_d[0], extra_weights_d[1], 0);
     
-    ///////////////cls_token////////////////////
-    O = add_CLS_token_init(O, extra_weights_d[2]);//cls token 넣기
-    O = add_CLS_token(O, dInput_embed);                  //input넣기
     
-    //////////////pos_embed/////////////////////
-    O = elementWise_Tensor(O, O, '+', extra_weights_d[3]);
-    // O = copyTensor(O, dInput);//임시 197
-
-    //////////Attention Block////////////
-
-
-    // O = copyTensor(O, input);
-    for(int i=0; i < ATTN_LAYER_NUM; i++){
-        // dMHA_block = copyMHABlock(dMHA_block, MHA_BLOCK[i]);//이거 그냥 다 복사할 것
-        //residual store
-        copyTensor(attn_Residual, O);
-        //normalize 1
-        O = normalize(O,O);
-        elementWise_Tensor(O, O, '*', dMHA_BLOCK[i][0]);
-        elementWise_Tensor(O, O, '+', dMHA_BLOCK[i][1]);
-
-        //dQKV
-        // dQKV = matmul_bias(dQKV, O, dMHA_BLOCK[i][2], dMHA_BLOCK[i][3], 0);//get QKV
-        matmul_cublas_batched_bias(dQKV, O, dMHA_BLOCK[i][2], dMHA_BLOCK[i][3]);
-        //flashAttnetion
-        O = flashAttention_MHA(O, dQKV);
-        //projection
-        // O_proj = matmul_bias(O_proj, O, dMHA_BLOCK[i][4], dMHA_BLOCK[i][5], 0);
-        matmul_cublas_batched_bias(O_proj, O, dMHA_BLOCK[i][4], dMHA_BLOCK[i][5]);
-        //residual 1
-        O_proj = elementWise_Tensor(O_proj, O_proj, '+', attn_Residual);
-        copyTensor(attn_Residual, O_proj);
-
-        //normalize2
-        normalize(O_proj, O_proj);
-        elementWise_Tensor(O_proj, O_proj, '*', dMHA_BLOCK[i][6]);
-        elementWise_Tensor(O_proj, O_proj, '+', dMHA_BLOCK[i][7]);
-
-        //MLP layer
-        // attn_mlp = matmul_bias(attn_mlp, O_proj, dMHA_BLOCK[i][8], dMHA_BLOCK[i][9], 0);
-        matmul_cublas_batched_bias(attn_mlp, O_proj, dMHA_BLOCK[i][8], dMHA_BLOCK[i][9]);
-        attn_mlp = gelu_Tensor(attn_mlp);
-        // O = matmul_bias(O, attn_mlp,dMHA_BLOCK[i][10], dMHA_BLOCK[i][11], 0);
-        matmul_cublas_batched_bias(O, attn_mlp,dMHA_BLOCK[i][10], dMHA_BLOCK[i][11]);
-
-        //residual 2
-        O = elementWise_Tensor(O, O, '+', attn_Residual);
-    }
-    //////////put head out////////////
-
-    //MLP head
-    head = cut_HEAD_out(head, O);
-
-    //normalization
-    head = normalize(head, head);
-    head = elementWise_Tensor(head, head, '*', extra_weights_d[4]);
-    head = elementWise_Tensor(head, head, '+', extra_weights_d[5]);
-    //mlp(768, 1000)
-    dOutput = matmul_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7], 0);
-    matmul_cublas_batched_bias(dOutput, head, extra_weights_d[6], extra_weights_d[7]);
-    output = copyTensor(output, dOutput);
-    out_argmax = maxmax(out_argmax, output);
-    for(int i=0; i < out_argmax->dim[0]; i++){
-        printf("%s\n", IMAGENET_LABELS[(int)out_argmax->T[i]]);
-    }
-    ////////////////////////////end of Iteration//////////////////////////////////
-    //
-    // printTensor(out_argmax);
-    }
     
     clock_t end_time = clock();
     double time_taken = (double)(end_time - st_time) / CLOCKS_PER_SEC;
